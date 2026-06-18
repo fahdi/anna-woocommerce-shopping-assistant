@@ -1,0 +1,3 @@
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":["aps.kv"]}}
+{"jsonrpc":"2.0","id":2,"method":"invoke","params":{"tool":"search_products","arguments":{"query":"hoodie","limit":3},"context":{"user_id":"u1","credentials":{"WOO_STORE_URL":"https://dev-anna-woo-demo.pantheonsite.io"}}}}
+{"jsonrpc":"2.0","id":3,"method":"invoke","params":{"tool":"view_cart","arguments":{},"context":{"user_id":"u1","credentials":{"WOO_STORE_URL":"https://dev-anna-woo-demo.pantheonsite.io"}}}}
