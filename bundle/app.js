@@ -24,31 +24,30 @@ let removingKey = null; // cart_item_key currently being removed
 
 async function fetchCart() {
   setPhase("loading");
-  const res = await anna.tools.invoke(TOOL_ID, "view_cart", {});
-  if (!res.success) {
-    errorMsg = res.error?.message ?? "Could not load cart.";
+  try {
+    cart = await anna.tools.invoke({ tool_id: TOOL_ID, method: "view_cart", args: {} });
+    updateWindowTitle();
+    setPhase("cart");
+  } catch (err) {
+    errorMsg = err.message ?? "Could not load cart.";
     setPhase("error");
-    return;
   }
-  cart = res.data;
-  updateWindowTitle();
-  setPhase("cart");
 }
 
 async function removeItem(key) {
   if (removingKey) return;
   removingKey = key;
   render();
-  const res = await anna.tools.invoke(TOOL_ID, "remove_from_cart", { cart_item_key: key });
-  removingKey = null;
-  if (!res.success) {
-    errorMsg = res.error?.message ?? "Could not remove item.";
+  try {
+    cart = await anna.tools.invoke({ tool_id: TOOL_ID, method: "remove_from_cart", args: { cart_item_key: key } });
+    removingKey = null;
+    updateWindowTitle();
+    setPhase("cart");
+  } catch (err) {
+    removingKey = null;
+    errorMsg = err.message ?? "Could not remove item.";
     setPhase("error");
-    return;
   }
-  cart = res.data;
-  updateWindowTitle();
-  setPhase("cart");
 }
 
 // ---- helpers -----------------------------------------------------------------
@@ -57,7 +56,7 @@ function setPhase(p) { phase = p; render(); }
 
 function updateWindowTitle() {
   const n = cart?.item_count ?? 0;
-  anna.window.setTitle(n > 0 ? `Cart (${n})` : "Cart");
+  anna.window.set_title({ title: n > 0 ? `Cart (${n})` : "Cart" });
 }
 
 function openCheckout() {
@@ -275,21 +274,21 @@ function devMockRuntime() {
 
   return {
     tools: {
-      invoke: async (_toolId, tool, args) => {
+      invoke: async ({ method, args = {} } = {}) => {
         await new Promise((r) => setTimeout(r, 300));
-        if (tool === "view_cart") return { success: true, data: mockCart };
-        if (tool === "remove_from_cart") {
+        if (method === "view_cart") return mockCart;
+        if (method === "remove_from_cart") {
           mockCart = {
             ...mockCart,
             items: mockCart.items.filter((i) => i.cart_item_key !== args.cart_item_key),
             item_count: mockCart.item_count - 1,
           };
-          return { success: true, data: mockCart };
+          return mockCart;
         }
-        return { success: false, error: { message: `mock: unknown tool ${tool}` } };
+        throw new Error(`mock: unknown tool ${method}`);
       },
     },
-    window: { setTitle: (t) => { document.title = t; } },
+    window: { set_title: ({ title } = {}) => { document.title = title ?? "Cart"; } },
     chat: { writeMessage: (msg) => console.log("[mock chat]", msg) },
   };
 }

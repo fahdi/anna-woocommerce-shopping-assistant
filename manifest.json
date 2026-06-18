@@ -26,11 +26,18 @@
       }
     ],
     "host_api": {
-      "tools": ["required:bundled:woo-shop"],
+      "tools": ["bundled:woo-shop"],
       "window": ["set_title"]
     },
     "csp_overrides": { "img-src": ["'self'", "data:", "blob:", "https:"], "script-src": ["'self'"] },
     "state_merge": "last_writer_wins"
   },
-  "dev": { "fixtures": ["fixtures/*.jsonl"], "seed_storage": {}, "user_id": 1 }
+  "dev": {
+    "fixtures": ["fixtures/*.jsonl"],
+    "seed_storage": {},
+    "seed_credentials": {
+      "WOO_STORE_URL": "https://dev-anna-woo-demo.pantheonsite.io"
+    },
+    "user_id": 1
+  }
 }

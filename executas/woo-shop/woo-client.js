@@ -31,10 +31,14 @@ export class WooClient {
    * @param {string|null} [cartToken] persisted Store API Cart-Token for this user
    */
   constructor(creds, cartToken = null) {
-    if (!creds || !creds.WOO_STORE_URL) {
+    // In dev, fall back to env var so `anna-app dev` works without
+    // the harness injecting credentials (seed_credentials is not yet
+    // implemented by the local runtime).
+    const storeUrl = creds?.WOO_STORE_URL || process.env.WOO_STORE_URL;
+    if (!storeUrl) {
       throw new WooError("WOO_STORE_URL credential is required", 400, null);
     }
-    this.base = String(creds.WOO_STORE_URL).replace(/\/+$/, "");
+    this.base = String(storeUrl).replace(/\/+$/, "");
     this.key = creds.WOO_CONSUMER_KEY || null;
     this.secret = creds.WOO_CONSUMER_SECRET || null;
     // Mutated after any cart call so the caller can persist it (APS storage).
