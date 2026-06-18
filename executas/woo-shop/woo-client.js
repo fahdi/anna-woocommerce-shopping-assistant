@@ -39,6 +39,22 @@ export class WooClient {
     this.secret = creds.WOO_CONSUMER_SECRET || null;
     // Mutated after any cart call so the caller can persist it (APS storage).
     this.cartToken = cartToken;
+    // Nonce is session-scoped and returned by GET /cart; fetched lazily before
+    // any cart write. Short-lived (~24h) so we re-fetch if a write returns 401.
+    this._nonce = null;
+  }
+
+  // Ensure we have a Cart-Token and Nonce before a write operation.
+  // Calls GET /cart once per client instance (or on 401 retry).
+  async _ensureCartSession() {
+    if (this.cartToken && this._nonce) return;
+    const res = await fetch(this.base + STORE_API + "/cart", {
+      headers: { Accept: "application/json", ...(this.cartToken ? { "Cart-Token": this.cartToken } : {}) },
+    });
+    const token = res.headers.get("cart-token");
+    const nonce = res.headers.get("nonce");
+    if (token) this.cartToken = token;
+    if (nonce) this._nonce = nonce;
   }
 
   get hasV3() {
@@ -48,27 +64,37 @@ export class WooClient {
   // ---- low-level transports -------------------------------------------------
 
   async _storeFetch(path, { method = "GET", body, query } = {}) {
+    const isWrite = method !== "GET";
+    // Cart writes need a Cart-Token + Nonce; fetch them lazily.
+    if (isWrite) await this._ensureCartSession();
+
     const url = new URL(this.base + STORE_API + path);
     if (query) {
       for (const [k, v] of Object.entries(query)) {
         if (v !== undefined && v !== null && v !== "") url.searchParams.set(k, String(v));
       }
     }
-    const headers = { Accept: "application/json" };
-    if (body) headers["Content-Type"] = "application/json";
-    // Stateless guest cart continuity: replay the persisted token, capture the
-    // refreshed one off the response. NOTE (top risk per PLAN §9): some WC
-    // versions also demand a `Nonce` header for cart writes — if add/remove
-    // return 403 with a nonce error, fetch a token+nonce from GET /cart first.
-    if (this.cartToken) headers["Cart-Token"] = this.cartToken;
 
-    const res = await fetch(url, {
-      method,
-      headers,
-      body: body ? JSON.stringify(body) : undefined,
-    });
-    const refreshed = res.headers.get("cart-token");
-    if (refreshed) this.cartToken = refreshed;
+    const doFetch = async () => {
+      const headers = { Accept: "application/json" };
+      if (body) headers["Content-Type"] = "application/json";
+      if (this.cartToken) headers["Cart-Token"] = this.cartToken;
+      if (isWrite && this._nonce) headers["Nonce"] = this._nonce;
+
+      const res = await fetch(url, { method, headers, body: body ? JSON.stringify(body) : undefined });
+      const refreshed = res.headers.get("cart-token");
+      if (refreshed) this.cartToken = refreshed;
+      return res;
+    };
+
+    let res = await doFetch();
+
+    // On 401 nonce expiry, re-bootstrap the session and retry once.
+    if (res.status === 401 && isWrite) {
+      this._nonce = null;
+      await this._ensureCartSession();
+      res = await doFetch();
+    }
 
     const data = await res.json().catch(() => null);
     if (!res.ok) {
@@ -106,7 +132,7 @@ export class WooClient {
   _normalizeProduct(p) {
     return {
       id: p.id,
-      name: p.name,
+      name: stripTags(p.name || ""),
       slug: p.slug,
       type: p.type,
       permalink: p.permalink,
