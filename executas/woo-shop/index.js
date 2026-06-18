@@ -1,0 +1,160 @@
+#!/usr/bin/env node
+// woo-shop — Anna Executa (tool). JSON-RPC 2.0 over stdio.
+//
+// Anna invariants honored here (PLAN §; from anna.partners/developers):
+//   * Long-running process: one JSON object per line on stdin, respond on
+//     stdout. stdout carries ONLY protocol; all logging goes to stderr.
+//   * `describe` returns the manifest object DIRECTLY (not wrapped).
+//   * `invoke` result is ALWAYS `{ success, data }` (or `{ success:false, error }`).
+//   * Tool params use Executa style `parameters:[{name,type,required,description}]`,
+//     NOT MCP `input_schema`.
+//   * Credentials arrive per-invoke via `params.context.credentials` — never
+//     logged, never cached module-global (this one process serves many users).
+
+import { createInterface } from "node:readline";
+import { WooClient, WooError } from "./woo-client.js";
+
+const log = (...a) => process.stderr.write(`[woo-shop] ${a.join(" ")}\n`);
+
+const MANIFEST = {
+  display_name: "WooCommerce Shop",
+  version: "0.1.0",
+  description: "Search products and manage the cart on a WooCommerce store.",
+  runtime: { type: "node", min_version: "18.0.0" },
+  host_capabilities: ["aps.kv"], // persist the Store API Cart-Token per user
+  credentials: [
+    { name: "WOO_STORE_URL", display_name: "Store URL", required: true, sensitive: false },
+    { name: "WOO_CONSUMER_KEY", display_name: "WC Consumer Key (read-only, optional)", required: false, sensitive: true },
+    { name: "WOO_CONSUMER_SECRET", display_name: "WC Consumer Secret (optional)", required: false, sensitive: true },
+  ],
+  tools: [
+    {
+      name: "search_products",
+      description: "Search products by name, category, or price range.",
+      parameters: [
+        { name: "query", type: "string", required: false, description: "search term" },
+        { name: "category", type: "string", required: false, description: "category slug, name, or id" },
+        { name: "min_price", type: "number", required: false },
+        { name: "max_price", type: "number", required: false },
+        { name: "limit", type: "integer", required: false, default: 5, description: "max 10" },
+      ],
+    },
+    {
+      name: "get_product_details",
+      description: "Full details for one product including variations.",
+      parameters: [{ name: "product_id", type: "integer", required: true }],
+    },
+    {
+      name: "add_to_cart",
+      description: "Add a product to the shopper's cart.",
+      parameters: [
+        { name: "product_id", type: "integer", required: true },
+        { name: "quantity", type: "integer", required: false, default: 1 },
+        { name: "variation_id", type: "integer", required: false },
+      ],
+    },
+    { name: "view_cart", description: "View the current cart, totals, and checkout URL.", parameters: [] },
+    {
+      name: "remove_from_cart",
+      description: "Remove an item by cart_item_key.",
+      parameters: [{ name: "cart_item_key", type: "string", required: true }],
+    },
+  ],
+};
+
+// --- Cart-Token persistence (top risk per PLAN §9) ---------------------------
+// In production the host exposes APS kv (negotiated in `initialize`); we key the
+// Store API Cart-Token by Anna user id, scope user/tool. Until that reverse-RPC
+// is wired, a process-local Map keeps dev/fixtures working.
+const memTokens = new Map();
+const storage = {
+  async getCartToken(userId) {
+    return memTokens.get(userId) ?? null;
+  },
+  async setCartToken(userId, token) {
+    if (token) memTokens.set(userId, token);
+  },
+};
+
+async function handleInvoke(params) {
+  const { tool, arguments: args = {}, context = {} } = params || {};
+  const userId = context.user_id ?? context.userId ?? "anon";
+  const creds = context.credentials || {};
+
+  const cartToken = await storage.getCartToken(userId);
+  const woo = new WooClient(creds, cartToken);
+
+  let data;
+  switch (tool) {
+    case "search_products": data = await woo.searchProducts(args); break;
+    case "get_product_details": data = await woo.getProductDetails(args); break;
+    case "add_to_cart": data = await woo.addToCart(args); break;
+    case "view_cart": data = await woo.viewCart(); break;
+    case "remove_from_cart": data = await woo.removeFromCart(args); break;
+    default: throw new WooError(`unknown tool: ${tool}`, 404, null);
+  }
+  // Persist any refreshed Cart-Token so the next invoke continues the same cart.
+  if (woo.cartToken && woo.cartToken !== cartToken) await storage.setCartToken(userId, woo.cartToken);
+  return data;
+}
+
+async function dispatch(method, params) {
+  switch (method) {
+    case "initialize":
+      // Negotiate APS storage for Cart-Token persistence.
+      return { protocol_version: 2, capabilities: { storage: ["get", "set"] }, manifest: MANIFEST };
+    case "describe":
+      return MANIFEST; // returned directly, not wrapped
+    case "health":
+      return { status: "ok", version: MANIFEST.version };
+    case "invoke":
+      try {
+        return { success: true, data: await handleInvoke(params) };
+      } catch (err) {
+        const e = err instanceof WooError ? err : new WooError(String(err?.message || err), 500, null);
+        log("invoke error:", e.status, e.message);
+        return { success: false, error: { message: e.message, status: e.status } };
+      }
+    default:
+      throw new Error(`unknown method: ${method}`);
+  }
+}
+
+// --- stdio JSON-RPC 2.0 loop -------------------------------------------------
+// Track in-flight requests so we only exit after all complete (stdin close
+// fires before async fetches resolve when piping input in tests/fixtures).
+let inFlight = 0;
+let stdinClosed = false;
+
+const rl = createInterface({ input: process.stdin });
+rl.on("line", async (line) => {
+  const text = line.trim();
+  if (!text) return;
+  inFlight++;
+  let req;
+  try {
+    req = JSON.parse(text);
+  } catch {
+    write({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "Parse error" } });
+    if (--inFlight === 0 && stdinClosed) process.exit(0);
+    return;
+  }
+  const { id = null, method, params } = req;
+  try {
+    const result = await dispatch(method, params);
+    write({ jsonrpc: "2.0", id, result });
+  } catch (err) {
+    write({ jsonrpc: "2.0", id, error: { code: -32601, message: String(err?.message || err) } });
+  }
+  if (--inFlight === 0 && stdinClosed) process.exit(0);
+});
+rl.on("close", () => {
+  stdinClosed = true;
+  if (inFlight === 0) process.exit(0);
+});
+
+function write(obj) {
+  process.stdout.write(JSON.stringify(obj) + "\n");
+}
+
+log("ready");

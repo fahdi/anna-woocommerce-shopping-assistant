@@ -1,0 +1,17 @@
+{
+  "slug": "woo-shopping-assistant",
+  "name": "WooCommerce Shopping Assistant",
+  "version": "0.1.0",
+  "tagline": "Search products and build a cart on any WooCommerce store, in chat.",
+  "description": "A shopping assistant for WooCommerce stores. Search the catalog, get product details, add and remove cart items, and review the cart before checking out — all driven by Anna's model with no provider keys of its own.",
+  "category": "shopping",
+  "logo": "bundle/icon.svg",
+  "cover": null,
+  "screenshots": [],
+  "support_url": "",
+  "privacy_url": "",
+  "pricing_model": "free",
+  "bundled_executas": {
+    "woo-shop": { "path": "./executas/woo-shop" }
+  }
+}

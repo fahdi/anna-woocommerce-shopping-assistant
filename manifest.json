@@ -1,0 +1,43 @@
+{
+  "schema": 2,
+  "permissions": ["tools.invoke", "chat.write_message", "storage.read", "storage.write", "ui.svg"],
+  "required_executas": [
+    { "tool_id": "bundled:woo-shop", "min_version": "0.1.0", "version": "latest" }
+  ],
+  "optional_executas": [],
+  "credentials": [
+    { "name": "WOO_STORE_URL", "display_name": "Store URL", "description": "https://dev-anna-woo-demo.pantheonsite.io", "required": true, "sensitive": false },
+    { "name": "WOO_CONSUMER_KEY", "display_name": "WC Consumer Key (read-only, optional)", "description": "WooCommerce REST API key — only needed for richer catalog fields", "required": false, "sensitive": true },
+    { "name": "WOO_CONSUMER_SECRET", "display_name": "WC Consumer Secret (optional)", "description": "WooCommerce REST API secret", "required": false, "sensitive": true }
+  ],
+  "system_prompt_addendum": "You are a shopping assistant for this WooCommerce store. Always call search_products or get_product_details before recommending; never invent product details or prices. Confirm the specific product before add_to_cart. Use view_cart before checkout and let the shopper review changes before anything is committed. You cannot place orders — hand off to the store checkout URL for payment. Defer order status, account, and returns to store support.",
+  "user_message_prefix_template": "[Shop] {user_message}",
+  "tags": ["woocommerce", "shopping", "ecommerce", "assistant"],
+  "ui": {
+    "bundle": { "format": "static-spa", "entry": "index.html", "external_origins": [] },
+    "views": [
+      {
+        "name": "cart",
+        "title": "Shopping Cart",
+        "default": true,
+        "entry": "index.html",
+        "min_size": { "w": 360, "h": 520 },
+        "default_size": { "w": 420, "h": 640 },
+        "max_size": { "w": 720, "h": 960 },
+        "resizable": true,
+        "movable": true,
+        "single_instance": true,
+        "icon": "icon.svg"
+      }
+    ],
+    "host_api": {
+      "tools": ["required:bundled:woo-shop"],
+      "chat": ["write_message"],
+      "storage": ["get", "set"],
+      "window": ["set_title"]
+    },
+    "csp_overrides": { "img-src": ["'self'", "data:", "blob:", "https:"], "script-src": ["'self'"] },
+    "state_merge": "last_writer_wins"
+  },
+  "dev": { "fixtures": ["fixtures/*.jsonl"], "seed_storage": {}, "user_id": 1 }
+}

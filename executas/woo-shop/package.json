@@ -1,0 +1,9 @@
+{
+  "name": "woo-shop",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "description": "Anna Executa: WooCommerce Store API tool surface (5 shopping tools).",
+  "bin": { "woo-shop": "./index.js" },
+  "engines": { "node": ">=18" }
+}

@@ -1,0 +1,7 @@
+{
+  "slug": "woo-shop",
+  "executa_type": "tool",
+  "runtime": { "type": "node", "min_version": "18.0.0" },
+  "entry": "index.js",
+  "distribution": "bundled"
+}
