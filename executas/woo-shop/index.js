@@ -62,17 +62,58 @@ const MANIFEST = {
   ],
 };
 
-// --- Cart-Token persistence (top risk per PLAN §9) ---------------------------
-// In production the host exposes APS kv (negotiated in `initialize`); we key the
-// Store API Cart-Token by Anna user id, scope user/tool. Until that reverse-RPC
-// is wired, a process-local Map keeps dev/fixtures working.
-const memTokens = new Map();
+// --- APS kv storage (Cart-Token persistence across Anna invokes) --------------
+// Anna's host provides `aps.kv` as a reverse-RPC capability (host calls back in
+// to the executa's stdout with JSON-RPC responses). We track pending requests
+// with a simple id→resolve/reject map, falling back to an in-process Map for
+// dev/fixtures where the host doesn't speak APS.
+//
+// Key design: we key by `userId` under scope `user/tool`. The Cart-Token is a
+// WooCommerce Store API JWT — safe to store in user-scoped KV.
+
+let apsAvailable = false; // set to true after `initialize` negotiates aps.kv
+const memTokens = new Map(); // fallback for dev / fixtures
+let _apsReqId = 1000;
+const _apsPending = new Map(); // id → { resolve, reject }
+
+function apsKey(userId) { return `woo_cart_token:${userId}`; }
+
+// Send a reverse-RPC request to the host and await its response.
+// The host sends back a JSON-RPC result on stdin with the same id.
+function apsRequest(method, params) {
+  const id = ++_apsReqId;
+  return new Promise((resolve, reject) => {
+    _apsPending.set(id, { resolve, reject });
+    write({ jsonrpc: "2.0", id, method, params });
+    // Timeout after 3s — fall back to mem silently.
+    setTimeout(() => {
+      if (_apsPending.has(id)) {
+        _apsPending.delete(id);
+        reject(new Error("aps timeout"));
+      }
+    }, 3000);
+  });
+}
+
 const storage = {
   async getCartToken(userId) {
+    if (apsAvailable) {
+      try {
+        const r = await apsRequest("aps.kv.get", { key: apsKey(userId), scope: "user/tool" });
+        return r?.value ?? null;
+      } catch { /* fall through to mem */ }
+    }
     return memTokens.get(userId) ?? null;
   },
   async setCartToken(userId, token) {
-    if (token) memTokens.set(userId, token);
+    if (token) {
+      memTokens.set(userId, token); // always keep mem in sync
+      if (apsAvailable) {
+        try {
+          await apsRequest("aps.kv.set", { key: apsKey(userId), value: token, scope: "user/tool" });
+        } catch { /* non-fatal */ }
+      }
+    }
   },
 };
 
@@ -101,7 +142,12 @@ async function handleInvoke(params) {
 async function dispatch(method, params) {
   switch (method) {
     case "initialize":
-      // Negotiate APS storage for Cart-Token persistence.
+      // Anna host advertises supported capabilities in params.capabilities[].
+      // Only enable APS if the host actually supports it (dev/fixtures may not).
+      if (Array.isArray(params?.capabilities) && params.capabilities.includes("aps.kv")) {
+        apsAvailable = true;
+        log("aps.kv available — Cart-Tokens will persist across invokes");
+      }
       return { protocol_version: 2, capabilities: { storage: ["get", "set"] }, manifest: MANIFEST };
     case "describe":
       return MANIFEST; // returned directly, not wrapped
@@ -139,7 +185,22 @@ rl.on("line", async (line) => {
     if (--inFlight === 0 && stdinClosed) process.exit(0);
     return;
   }
+
   const { id = null, method, params } = req;
+
+  // JSON-RPC responses (from the host) have no `method` field.
+  if (method === undefined) {
+    if (_apsPending.has(id)) {
+      const { resolve, reject } = _apsPending.get(id);
+      _apsPending.delete(id);
+      if ("error" in req) reject(new Error(req.error?.message || "aps error"));
+      else resolve(req.result ?? null);
+    }
+    // Spurious/late responses — silently drop.
+    if (--inFlight === 0 && stdinClosed) process.exit(0);
+    return;
+  }
+
   try {
     const result = await dispatch(method, params);
     write({ jsonrpc: "2.0", id, result });
