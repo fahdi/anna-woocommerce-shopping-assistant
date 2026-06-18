@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "cart-ui",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "-p", "5173", "bundle"],
+      "port": 5173
+    }
+  ]
+}

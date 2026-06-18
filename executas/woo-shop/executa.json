@@ -1,7 +1,8 @@
 {
   "slug": "woo-shop",
+  "tool_id": "tool-fahdmurtaza-woo-shop-n8sy5atm",
   "executa_type": "tool",
   "runtime": { "type": "node", "min_version": "18.0.0" },
   "entry": "index.js",
-  "distribution": "bundled"
+  "distribution": { "type": "local" }
 }

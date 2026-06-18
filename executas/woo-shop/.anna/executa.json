@@ -1,0 +1,9 @@
+{
+  "$schema": "anna-executa-identity/v1",
+  "host": "https://anna.partners",
+  "executa_id": 1012,
+  "tool_id": "tool-fahdmurtaza-woo-shop-n8sy5atm",
+  "slug": "woo-shop",
+  "executa_type": "tool",
+  "first_published_at": "2026-06-18T21:43:38.327Z"
+}

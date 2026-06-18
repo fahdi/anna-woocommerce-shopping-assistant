@@ -5,11 +5,6 @@
     { "tool_id": "bundled:woo-shop", "min_version": "0.1.0", "version": "latest" }
   ],
   "optional_executas": [],
-  "credentials": [
-    { "name": "WOO_STORE_URL", "display_name": "Store URL", "description": "Base URL of your WooCommerce store, e.g. https://your-store.com", "required": true, "sensitive": false },
-    { "name": "WOO_CONSUMER_KEY", "display_name": "WC Consumer Key (read-only, optional)", "description": "WooCommerce REST API key — only needed for richer catalog fields", "required": false, "sensitive": true },
-    { "name": "WOO_CONSUMER_SECRET", "display_name": "WC Consumer Secret (optional)", "description": "WooCommerce REST API secret", "required": false, "sensitive": true }
-  ],
   "system_prompt_addendum": "You are a shopping assistant for this WooCommerce store. Always call search_products or get_product_details before recommending; never invent product details or prices. Confirm the specific product before add_to_cart. Use view_cart before checkout and let the shopper review changes before anything is committed. You cannot place orders — hand off to the store checkout URL for payment. Defer order status, account, and returns to store support.",
   "user_message_prefix_template": "[Shop] {user_message}",
   "tags": ["woocommerce", "shopping", "ecommerce", "assistant"],

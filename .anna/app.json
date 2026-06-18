@@ -1,0 +1,8 @@
+{
+  "$schema": "anna-app-identity/v1",
+  "host": "https://anna.partners",
+  "app_id": 57,
+  "slug": "woo-shopping-assistant",
+  "handle": "fahdmurtaza",
+  "first_published_at": "2026-06-18T21:44:03.808Z"
+}

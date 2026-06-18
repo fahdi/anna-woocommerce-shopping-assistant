@@ -1,0 +1,11 @@
+{
+  "$schema": "anna-executas-lock/v1",
+  "host": "https://anna.partners",
+  "executas": {
+    "woo-shop": {
+      "tool_id": "tool-fahdmurtaza-woo-shop-n8sy5atm",
+      "path": "./executas/woo-shop",
+      "source": "cut"
+    }
+  }
+}
