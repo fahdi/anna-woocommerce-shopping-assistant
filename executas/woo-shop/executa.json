@@ -1,8 +1,12 @@
 {
   "slug": "woo-shop",
+  "name": "WooCommerce Shop",
+  "version": "0.1.0",
   "tool_id": "tool-fahdmurtaza-woo-shop-n8sy5atm",
   "executa_type": "tool",
-  "runtime": { "type": "node", "min_version": "18.0.0" },
+  "type": "node",
   "entry": "index.js",
-  "distribution": { "type": "local" }
+  "min_node_version": "22.0.0",
+  "distribution": { "type": "local" },
+  "enabled": true
 }
