@@ -1,12 +1,12 @@
 {
   "schema": 2,
-  "permissions": ["tools.invoke", "chat.write_message", "storage.read", "storage.write", "ui.svg"],
+  "permissions": ["tools.invoke"],
   "required_executas": [
     { "tool_id": "bundled:woo-shop", "min_version": "0.1.0", "version": "latest" }
   ],
   "optional_executas": [],
   "credentials": [
-    { "name": "WOO_STORE_URL", "display_name": "Store URL", "description": "https://dev-anna-woo-demo.pantheonsite.io", "required": true, "sensitive": false },
+    { "name": "WOO_STORE_URL", "display_name": "Store URL", "description": "Base URL of your WooCommerce store, e.g. https://your-store.com", "required": true, "sensitive": false },
     { "name": "WOO_CONSUMER_KEY", "display_name": "WC Consumer Key (read-only, optional)", "description": "WooCommerce REST API key — only needed for richer catalog fields", "required": false, "sensitive": true },
     { "name": "WOO_CONSUMER_SECRET", "display_name": "WC Consumer Secret (optional)", "description": "WooCommerce REST API secret", "required": false, "sensitive": true }
   ],
@@ -32,8 +32,6 @@
     ],
     "host_api": {
       "tools": ["required:bundled:woo-shop"],
-      "chat": ["write_message"],
-      "storage": ["get", "set"],
       "window": ["set_title"]
     },
     "csp_overrides": { "img-src": ["'self'", "data:", "blob:", "https:"], "script-src": ["'self'"] },

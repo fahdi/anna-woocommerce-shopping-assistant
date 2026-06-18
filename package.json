@@ -1,0 +1,14 @@
+{
+  "name": "anna-woocommerce-shopping-assistant",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "test:unit": "node --test tests/strip-tags.test.js",
+    "test:integration": "node --test tests/executa.test.js"
+  },
+  "devDependencies": {
+    "@anna-ai/cli": "latest"
+  }
+}

@@ -217,7 +217,8 @@ export class WooClient {
   }
 }
 
-function stripTags(html) {
+export function stripTags(html) {
+  if (html == null) return "";
   return String(html)
     .replace(/<[^>]*>/g, "")
     .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
