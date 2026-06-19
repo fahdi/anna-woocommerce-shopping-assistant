@@ -1,7 +1,7 @@
 {
   "slug": "woo-shop",
   "name": "WooCommerce Shop",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "tool_id": "tool-fahdmurtaza-woo-shop-n8sy5atm",
   "executa_type": "tool",
   "type": "node",
@@ -15,7 +15,7 @@
         "type": "binary",
         "capabilities": ["aps.kv"],
         "binary_urls": {
-          "linux-x86_64": { "url": "https://github.com/fahdi/anna-woocommerce-shopping-assistant/releases/download/woo-shop-v0.1.3/tool-fahdmurtaza-woo-shop-n8sy5atm-linux-x86_64.tar.gz", "entrypoint": "tool-fahdmurtaza-woo-shop-n8sy5atm" }
+          "linux-x86_64": { "url": "https://github.com/fahdi/anna-woocommerce-shopping-assistant/releases/download/woo-shop-v0.1.4/tool-fahdmurtaza-woo-shop-n8sy5atm-linux-x86_64.tar.gz", "entrypoint": "tool-fahdmurtaza-woo-shop-n8sy5atm" }
         }
       }
     }
