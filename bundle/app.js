@@ -597,6 +597,7 @@ doSearch(_initQ ?? "");
 // Poll for agent-triggered search queries written by the executa via aps.kv.
 // anna.storage.get reads from the same backend as the executa's aps.kv.
 let _lastAgentQ = null;
+window.__wooLastQ = () => _lastAgentQ;
 (async function pollAgentSearch() {
   try {
     const r = await anna.storage.get({ key: "woo_panel_q" });
@@ -605,7 +606,7 @@ let _lastAgentQ = null;
       _lastAgentQ = q;
       doSearch(q);
     }
-  } catch {}
+  } catch(e) { console.error('[woo-poll]', e?.message ?? String(e)); }
   setTimeout(pollAgentSearch, 1500);
 })();
 
