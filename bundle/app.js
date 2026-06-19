@@ -193,7 +193,11 @@ async function removeItem(key) {
 }
 
 function openCheckout() {
-  if (cart?.checkout_url) window.open(cart.checkout_url, "_blank", "noopener");
+  const token = getToken();
+  const url = token
+    ? `${STORE}/?anna_checkout=${encodeURIComponent(token)}`
+    : (cart?.checkout_url ?? `${STORE}/checkout/`);
+  window.open(url, "_blank", "noopener");
 }
 
 // ---- helpers -----------------------------------------------------------------
