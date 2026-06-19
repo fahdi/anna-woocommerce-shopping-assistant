@@ -65,7 +65,7 @@ cat > "$SEA_CONFIG" <<JSON
   "output": "$SEA_BLOB",
   "disableExperimentalSEAWarning": true,
   "useSnapshot": false,
-  "useCodeCache": true
+  "useCodeCache": false
 }
 JSON
 
@@ -88,8 +88,21 @@ npx --yes postject "$BINARY" NODE_SEA_BLOB "$SEA_BLOB" \
   --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2
 
 if [ "$OS" = "Darwin" ]; then
-  echo "Re-signing binary with ad-hoc signature..."
-  codesign --sign - "$BINARY"
+  # V8 JIT requires these entitlements — without them the binary segfaults on macOS.
+  ENTITLEMENTS="$WORK_DIR/entitlements.plist"
+  cat > "$ENTITLEMENTS" <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>com.apple.security.cs.allow-jit</key><true/>
+  <key>com.apple.security.cs.allow-unsigned-executable-memory</key><true/>
+  <key>com.apple.security.cs.disable-library-validation</key><true/>
+</dict>
+</plist>
+PLIST
+  echo "Re-signing binary with JIT entitlements..."
+  codesign --sign - --force --entitlements "$ENTITLEMENTS" "$BINARY"
 fi
 
 chmod +x "$BINARY"
