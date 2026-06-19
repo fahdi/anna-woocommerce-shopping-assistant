@@ -166,6 +166,17 @@ export class WooClient {
     const products = await this._storeFetch("/products", {
       query: { search: query, category: categoryId, min_price, max_price, per_page },
     });
+    // Fallback: if keyword search returns nothing and no explicit category was
+    // given, treat the query as a category name/slug (e.g. "electronics").
+    if (products.length === 0 && query && !category) {
+      const fallbackId = await this._categoryId(query);
+      if (fallbackId) {
+        const catProducts = await this._storeFetch("/products", {
+          query: { category: fallbackId, min_price, max_price, per_page },
+        });
+        return { count: catProducts.length, products: catProducts.map((p) => this._normalizeProduct(p)) };
+      }
+    }
     return { count: products.length, products: products.map((p) => this._normalizeProduct(p)) };
   }
 

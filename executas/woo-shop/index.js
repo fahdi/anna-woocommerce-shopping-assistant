@@ -18,7 +18,7 @@ const log = (...a) => process.stderr.write(`[woo-shop] ${a.join(" ")}\n`);
 
 const MANIFEST = {
   display_name: "WooCommerce Shop",
-  version: "0.1.0",
+  version: "0.1.6",
   description: "Search products and manage the cart on a WooCommerce store.",
   runtime: { type: "node", min_version: "18.0.0" },
   host_capabilities: ["aps.kv"], // persist the Store API Cart-Token per user
@@ -175,6 +175,12 @@ async function dispatch(method, params) {
 // --- stdio JSON-RPC 2.0 loop -------------------------------------------------
 // Track in-flight requests so we only exit after all complete (stdin close
 // fires before async fetches resolve when piping input in tests/fixtures).
+// Support CLI `describe` subcommand (used by agent Rediscover Local)
+if (process.argv[2] === "describe") {
+  process.stdout.write(JSON.stringify(MANIFEST) + "\n");
+  process.exit(0);
+}
+
 let inFlight = 0;
 let stdinClosed = false;
 
