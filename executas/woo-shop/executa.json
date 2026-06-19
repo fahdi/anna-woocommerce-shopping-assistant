@@ -15,9 +15,7 @@
         "type": "binary",
         "capabilities": ["aps.kv"],
         "binary_urls": {
-          "darwin-arm64":  { "url": "https://github.com/fahdi/anna-woocommerce-shopping-assistant/releases/download/woo-shop-v0.1.3/tool-fahdmurtaza-woo-shop-n8sy5atm-darwin-arm64.tar.gz",  "entrypoint": "tool-fahdmurtaza-woo-shop-n8sy5atm" },
-          "darwin-x86_64": { "url": "https://github.com/fahdi/anna-woocommerce-shopping-assistant/releases/download/woo-shop-v0.1.3/tool-fahdmurtaza-woo-shop-n8sy5atm-darwin-x86_64.tar.gz", "entrypoint": "tool-fahdmurtaza-woo-shop-n8sy5atm" },
-          "linux-x86_64":  { "url": "https://github.com/fahdi/anna-woocommerce-shopping-assistant/releases/download/woo-shop-v0.1.3/tool-fahdmurtaza-woo-shop-n8sy5atm-linux-x86_64.tar.gz",  "entrypoint": "tool-fahdmurtaza-woo-shop-n8sy5atm" }
+          "linux-x86_64": { "url": "https://github.com/fahdi/anna-woocommerce-shopping-assistant/releases/download/woo-shop-v0.1.3/tool-fahdmurtaza-woo-shop-n8sy5atm-linux-x86_64.tar.gz", "entrypoint": "tool-fahdmurtaza-woo-shop-n8sy5atm" }
         }
       }
     }
