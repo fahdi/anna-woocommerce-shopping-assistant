@@ -589,7 +589,17 @@ render();
 // Pre-load cart count for the badge (silently — don't block or show errors on init)
 fetchCart().catch(() => {});
 
-// Auto-search if agent opened panel with ?q= param (empty string = browse all)
+// Auto-search on open — URL ?q=QUERY from open_app_view, or default to browse-all
 const _params = new URLSearchParams(location.search.length > 1 ? location.search : location.hash.replace(/^#\/?/, ""));
 const _initQ = _params.has("q") ? _params.get("q") : null;
-if (_initQ !== null) doSearch(_initQ);
+doSearch(_initQ ?? "");
+
+// Handle subsequent open_app_view calls while the panel is already mounted.
+// The Anna SDK fires "open_view" with the URL/params Anna passed to open_app_view().
+anna.on("open_view", (payload) => {
+  const src = (payload && (payload.url || payload.path || payload.entry)) || "";
+  const qs  = src.includes("?") ? src.split("?")[1] : ((payload && payload.search) || "");
+  const p   = new URLSearchParams(qs);
+  const q   = p.has("q") ? p.get("q") : (payload && payload.q !== undefined ? String(payload.q) : null);
+  if (q !== null) doSearch(q);
+});
