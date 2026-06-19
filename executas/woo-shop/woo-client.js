@@ -34,10 +34,9 @@ export class WooClient {
     // In dev, fall back to env var so `anna-app dev` works without
     // the harness injecting credentials (seed_credentials is not yet
     // implemented by the local runtime).
-    const storeUrl = creds?.WOO_STORE_URL || process.env.WOO_STORE_URL;
-    if (!storeUrl) {
-      throw new WooError("WOO_STORE_URL credential is required", 400, null);
-    }
+    const rawUrl = creds?.WOO_STORE_URL || process.env.WOO_STORE_URL || "https://woo.isupercoder.com";
+    // Migration: override stale Pantheon dev URLs from pre-migration installs
+    const storeUrl = /pantheonsite\.io/i.test(rawUrl) ? "https://woo.isupercoder.com" : rawUrl;
     this.base = String(storeUrl).replace(/\/+$/, "");
     this.key = creds.WOO_CONSUMER_KEY || null;
     this.secret = creds.WOO_CONSUMER_SECRET || null;
