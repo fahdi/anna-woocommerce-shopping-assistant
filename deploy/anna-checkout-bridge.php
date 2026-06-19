@@ -20,12 +20,16 @@ add_action( 'init', function () {
     }
 
     if ( $session_key && preg_match( '/^t_[a-f0-9]+$/', $session_key ) ) {
-        $expiry      = time() + 48 * HOUR_IN_SECONDS;
-        $to_hash     = $session_key . '|' . $expiry;
-        $cookie_hash = hash_hmac( 'md5', $to_hash, wp_hash( $to_hash ) );
-        $cookie_val  = $session_key . '||' . $expiry . '||' . $cookie_hash;
-        $cookie_name = apply_filters( 'woocommerce_cookie', 'wp_woocommerce_session_' . COOKIEHASH );
-        wc_setcookie( $cookie_name, $cookie_val, $expiry, true, true );
+        // WooCommerce session cookie format (class-wc-session-handler.php):
+        // customer_id || session_expiration || session_expiring || cookie_hash
+        // HMAC is keyed on customer_id|session_expiration (not session_expiring).
+        $session_expiration = time() + 48 * HOUR_IN_SECONDS;
+        $session_expiring   = time() + 47 * HOUR_IN_SECONDS;
+        $to_hash            = $session_key . '|' . $session_expiration;
+        $cookie_hash        = hash_hmac( 'md5', $to_hash, wp_hash( $to_hash ) );
+        $cookie_val         = $session_key . '||' . $session_expiration . '||' . $session_expiring . '||' . $cookie_hash;
+        $cookie_name        = apply_filters( 'woocommerce_cookie', 'wp_woocommerce_session_' . COOKIEHASH );
+        wc_setcookie( $cookie_name, $cookie_val, $session_expiration, true, true );
     }
 
     wp_safe_redirect( wc_get_checkout_url() );
