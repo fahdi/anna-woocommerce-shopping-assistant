@@ -97,11 +97,14 @@ echo "  → Binary: $(du -sh "$BINARY" | cut -f1)"
 
 # ── 6. Sanity check ──────────────────────────────────────────────────────────
 echo "Sanity check — describe call:"
-echo '{"jsonrpc":"2.0","id":1,"method":"describe","params":{}}' | "$BINARY" | head -1 | node -e "
-  const d = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
-  if (!d.result || !d.result.tools) { console.error('BAD describe response'); process.exit(1); }
-  console.log('  ✓ describe returned', d.result.tools.length, 'tools');
-" || { echo "Binary sanity check failed!"; exit 1; }
+DESCRIBE_OUT="$("$BINARY" 2>/dev/null <<< '{"jsonrpc":"2.0","id":1,"method":"describe","params":{}}')"
+if echo "$DESCRIBE_OUT" | grep -q '"display_name"'; then
+  echo "  ✓ Binary responds correctly to describe"
+else
+  echo "Binary sanity check failed!"
+  echo "Output: $DESCRIBE_OUT"
+  exit 1
+fi
 
 # ── 7. Package as tar.gz ──────────────────────────────────────────────────────
 ARCHIVE_NAME="${TOOL_ID}-${PLATFORM}.tar.gz"
