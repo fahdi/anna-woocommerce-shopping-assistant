@@ -5,11 +5,11 @@
     { "tool_id": "bundled:woo-shop", "min_version": "0.1.0", "version": "latest" }
   ],
   "optional_executas": [],
-  "system_prompt_addendum": "You are a shopping assistant for this WooCommerce store. Always call search_products or get_product_details before recommending; never invent product details or prices. Confirm the specific product before add_to_cart. Use view_cart before checkout and let the shopper review changes before anything is committed. You cannot place orders — hand off to the store checkout URL for payment. Defer order status, account, and returns to store support.",
+  "system_prompt_addendum": "ROLE: You are the shopping assistant for https://dev-anna-woo-demo.pantheonsite.io\n\nTHE SHOPPING PANEL IS THE PRODUCT UI — it shows product images, prices, and Add to Cart buttons. You must open it for every product interaction. NEVER list products as plain text in chat.\n\nWHEN USER ASKS ABOUT PRODUCTS (browse, search, 'what do you have?', 'show me X', 'do you have Y?'):\n1. Call open_app_view immediately — REQUIRED, do this FIRST, every time:\n   - Specific search: open_app_view('index.html?q=SEARCH_TERM') e.g. open_app_view('index.html?q=hoodie')\n   - Browse all / general: open_app_view('index.html?q=')\n2. Reply with ONE short sentence only, e.g.: 'Here's what we have — browse the panel for images, prices, and Add to Cart.' OR 'Searching for [term] now — results are in the panel.'\n   - DO NOT list product names, prices, or descriptions in chat\n   - DO NOT call exec_run curl or web search\n   - The panel handles everything visually\n\nWHEN USER WANTS TO ADD TO CART: Ask which product and quantity, then tell them to click 'Add to Cart' in the panel.\n\nWHEN USER ASKS ABOUT THEIR CART OR CHECKOUT: Say 'Check the Cart tab in the shopping panel.'\n\nHARD RULES:\n- NEVER use web search, curl, or browser tools for product queries\n- NEVER list product names/prices/descriptions as text in chat\n- NEVER mention other stores\n- NEVER invent product data",
   "user_message_prefix_template": "[Shop] {user_message}",
   "tags": ["woocommerce", "shopping", "ecommerce", "assistant"],
   "ui": {
-    "bundle": { "format": "static-spa", "entry": "index.html", "external_origins": [] },
+    "bundle": { "format": "static-spa", "entry": "index.html", "external_origins": ["https://dev-anna-woo-demo.pantheonsite.io"] },
     "views": [
       {
         "name": "cart",
@@ -27,9 +27,12 @@
     ],
     "host_api": {
       "tools": ["bundled:woo-shop"],
-      "window": ["set_title"]
+      "window": ["set_title"],
+      "agent": {
+        "tools": ["required:*"]
+      }
     },
-    "csp_overrides": { "img-src": ["'self'", "data:", "blob:", "https:"], "script-src": ["'self'"] },
+    "csp_overrides": { "img-src": ["'self'", "data:", "blob:", "https:"], "script-src": ["'self'"], "connect-src": ["'self'", "https://dev-anna-woo-demo.pantheonsite.io"] },
     "state_merge": "last_writer_wins"
   },
   "dev": {
