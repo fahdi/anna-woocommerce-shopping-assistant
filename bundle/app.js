@@ -1,4 +1,4 @@
-// ---- bootstrap --------------------------------------------------------------- v0.1.25
+// ---- bootstrap --------------------------------------------------------------- v0.1.27
 let anna;
 try {
   const { AnnaAppRuntime } = await import("/static/anna-apps/_sdk/latest/index.js");
@@ -11,7 +11,7 @@ try {
 // The store at DEV_STORE has Access-Control-Allow-Origin: https://anna.partners
 // so all fetches work directly from the panel iframe without a server proxy.
 
-const STORE = "https://dev-anna-woo-demo.pantheonsite.io";
+const STORE = "https://woo.isupercoder.com";
 const API   = STORE + "/wp-json/wc/store/v1";
 const TOKEN_KEY = "woo_cart_token";
 
@@ -195,7 +195,7 @@ async function removeItem(key) {
 function openCheckout() {
   const token = getToken();
   const url = token
-    ? `${STORE}/?anna_checkout=${encodeURIComponent(token)}`
+    ? `${STORE}/?anna_checkout=${encodeURIComponent(token)}&_cb=${Date.now()}`
     : (cart?.checkout_url ?? `${STORE}/checkout/`);
   window.open(url, "_blank", "noopener");
 }

@@ -2,11 +2,15 @@
 /**
  * Plugin Name: Anna Checkout Bridge
  * Description: Bridges Store API Cart-Token session to WooCommerce PHP session cookie for checkout.
- * Version: 1.0.0
+ * Version: 1.1.0
  */
 
 add_action( 'init', function () {
     if ( empty( $_GET['anna_checkout'] ) ) return;
+
+    // Never let CDN cache this redirect — each request must hit PHP.
+    header( 'Cache-Control: no-store, no-cache, must-revalidate, private' );
+    header( 'Pragma: no-cache' );
 
     $token  = sanitize_text_field( wp_unslash( $_GET['anna_checkout'] ) );
     $parts  = explode( '.', $token );
@@ -20,9 +24,9 @@ add_action( 'init', function () {
     }
 
     if ( $session_key && preg_match( '/^t_[a-f0-9]+$/', $session_key ) ) {
-        // WooCommerce session cookie format (class-wc-session-handler.php):
+        // WooCommerce session cookie format (class-wc-session-handler.php set_customer_session_cookie):
         // customer_id || session_expiration || session_expiring || cookie_hash
-        // HMAC is keyed on customer_id|session_expiration (not session_expiring).
+        // HMAC key: wp_hash(customer_id|session_expiration)
         $session_expiration = time() + 48 * HOUR_IN_SECONDS;
         $session_expiring   = time() + 47 * HOUR_IN_SECONDS;
         $to_hash            = $session_key . '|' . $session_expiration;
