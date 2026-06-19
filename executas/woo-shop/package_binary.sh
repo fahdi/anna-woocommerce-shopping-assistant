@@ -101,8 +101,8 @@ if [ "$OS" = "Darwin" ]; then
 </dict>
 </plist>
 PLIST
-  echo "Re-signing binary with JIT entitlements..."
-  codesign --sign - --force --entitlements "$ENTITLEMENTS" "$BINARY"
+  echo "Re-signing binary with JIT entitlements + Hardened Runtime..."
+  codesign --sign - --force --options runtime --entitlements "$ENTITLEMENTS" "$BINARY"
 fi
 
 chmod +x "$BINARY"
