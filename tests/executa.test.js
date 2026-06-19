@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 const EXECUTA = join(dirname(fileURLToPath(import.meta.url)), "../executas/woo-shop/index.js");
-const STORE_URL = "https://dev-anna-woo-demo.pantheonsite.io";
+const STORE_URL = "https://woo.isupercoder.com";
 
 // Runs `requests` through the executa and returns parsed responses keyed by id.
 // APS reverse-RPC messages (method field present on outbound) are collected but

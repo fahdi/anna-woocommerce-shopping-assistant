@@ -1,36 +1,6 @@
 # Lessons Learned
 
-## 1. Pantheon OPcache / Multi-Container Cache Invalidation (Jun 2026)
-
-**Problem**: Plugin code changes on Pantheon dev did not take effect even after deactivating/reactivating the plugin. The WooCommerce session cookie produced by the plugin remained wrong (3 fields instead of 4) despite correct disk content.
-
-**Root cause**: Two separate caching layers compounded each other:
-- **Pantheon CDN** cached the `302` redirect response from `?anna_checkout=...`, so the bridge never ran twice in a row
-- **Pantheon object cache** (cross-container Redis/Memcached) served stale `active_plugins` option — the frontend PHP containers didn't see the updated plugin list immediately after a WP admin deactivate/activate
-
-**What we tried that didn't work**: Delete + reinstall plugin, WP plugin editor save, `.user.ini` OPcache disable, adding Cache-Control headers to the PHP output, new plugin slug with fresh file path.
-
-**What actually fixed it**: Moving to `woo.isupercoder.com` (a clean WordPress install without Pantheon infrastructure) eliminated the caching layers entirely.
-
-**Decision**: Always test session/cookie functionality on a plain hosting environment, not a CDN-accelerated multi-container platform, during early development.
-
----
-
-## 2. Anna Executa Credentials Cannot Be Updated After Install (Jun 2026)
-
-**Problem**: After switching the WooCommerce store from `dev-anna-woo-demo.pantheonsite.io` to `woo.isupercoder.com`, the executa (woo-shop binary) continued hitting the old Pantheon store. The user's stored `WOO_STORE_URL` credential pointed to Pantheon and there was no API endpoint to update it.
-
-**What we tried**: `POST /api/v1/apps/57/install` with credentials in 4 different body formats (flat, tool-id-keyed, user_executa_id-keyed, named_executas array) — all returned `{"success":true,"installed_executas":[]}`. No credential was saved regardless of format.
-
-**Root cause**: The anna.partners API does not expose a public endpoint to update per-user executa credentials post-install. The credential is written only at first install and is not editable without super-admin access.
-
-**Fix**: Added a migration override in `woo-client.js` constructor that detects any `pantheonsite.io` URL and replaces it with `woo.isupercoder.com`. This makes the stored credential irrelevant for existing installations.
-
-**Decision**: For any store migration, bake the new URL directly into the executa source as a default fallback rather than relying on user-editable credentials.
-
----
-
-## 3. Cart Token Scope: Panel vs. Executa Are Different Processes (Jun 2026)
+## 1. Cart Token Scope: Panel vs. Executa Are Different Processes (Jun 2026)
 
 **Problem**: Cart items added via the panel (which hits WooCommerce Store API directly) were not reflected when the executa retrieved the cart, and vice versa. The checkout sometimes showed different items than the cart tab.
 
@@ -40,7 +10,7 @@
 
 ---
 
-## 4. WooCommerce Session Cookie Format — 4 Fields, Single-Pipe Separator (Jun 2026)
+## 2. WooCommerce Session Cookie Format — 4 Fields, Single-Pipe Separator (Jun 2026)
 
 **Problem**: WooCommerce checkout page rejected the session cookie set by our PHP bridge, showing an empty cart instead of the cart built in the panel.
 
@@ -50,8 +20,37 @@
 
 ---
 
-## 5. Never Hardcode the Demo/Dev Store URL in Published App Releases (Jun 2026)
+## 3. Anna Executa Parameters Must Have a `description` Field (Jun 2026)
 
-**Problem**: `bundle/app.js` and `manifest.json` shipped with `dev-anna-woo-demo.pantheonsite.io` hardcoded. When the store migrated, every published version of the app was broken with no way to update users' installed copies without a full uninstall+reinstall.
+**Problem**: The woo-shop executa showed "0/1 running, 1 not installed" in the Anna agents dashboard. "Rediscover Local" triggered but reported "describe returned no manifest".
 
-**Decision**: Store URL should either come from a credential (updateable without rebuilding) or the executa source should have a clearly versioned default that can be overridden. Avoid hardcoding temporary dev URLs in any file that ships in a release bundle.
+**Root cause**: `ParameterSchema.from_dict()` inside the Anna app does `d['description']` (not `d.get('description')`), so any parameter missing a `description` key raises `KeyError`. The exception is silently caught in `discover_and_load()` which returns `None`, causing the manifest to be discarded.
+
+**Fix**: Every tool parameter in the manifest must include a `description` field — even optional/obvious ones.
+
+---
+
+## 4. Anna Executa Binary Layout Requires Symlink Chain (Jun 2026)
+
+**Problem**: The bin entry at `~/.anna/executa/bin/<tool_id>` was a regular file. The auto-scan path worked but "Rediscover Local" failed with "unable to determine registration key".
+
+**Root cause**: `_infer_tool_home_from_executable()` resolves the executable via `readlink()` to find the path segment containing "tools" and infer the tool_id. When the bin entry is a plain file (not a symlink into the versioned tool directory), the function returns `None` and the tool_id cannot be inferred.
+
+**Required structure**:
+```
+~/.anna/executa/bin/<tool_id>           → symlink
+~/.anna/executa/tools/<tool_id>/
+  current/                              → symlink → v<version>/
+  v<version>/
+    <tool_id>                           (the actual executable / shim)
+```
+
+**Fix**: Created the full versioned directory tree and made the bin entry a symlink pointing into `tools/<tool_id>/current/<tool_id>`.
+
+---
+
+## 5. Never Hardcode Temporary Dev/Demo Store URLs in Release Artifacts (Jun 2026)
+
+**Problem**: Store URL was hardcoded in published release assets. When the store changed, every installed copy of the app broke with no way to update without a full uninstall+reinstall.
+
+**Decision**: Store URL must come from a user-editable credential (`WOO_STORE_URL`). The executa source should have a versioned default fallback (`woo.isupercoder.com`) that can be overridden — never a temporary URL in any file that ships in a release bundle.

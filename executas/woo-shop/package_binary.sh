@@ -77,6 +77,7 @@ node --experimental-sea-config "$SEA_CONFIG"
 NODE_BIN="$(which node)"
 BINARY="$WORK_DIR/$TOOL_ID"
 cp "$NODE_BIN" "$BINARY"
+chmod +w "$BINARY"
 
 if [ "$OS" = "Darwin" ]; then
   echo "Removing macOS code signature from node copy..."

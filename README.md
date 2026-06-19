@@ -83,7 +83,7 @@ anna publish
 
 ## Demo store
 
-`https://dev-anna-woo-demo.pantheonsite.io` — 22 products: hoodies, t-shirts, beanies, cap, belt, sunglasses, pennant, polo, long sleeve tee.
+`https://woo.isupercoder.com` — 22 products: hoodies, t-shirts, beanies, cap, belt, sunglasses, pennant, polo, long sleeve tee.
 
 ## Key implementation details
 

@@ -34,30 +34,30 @@ const MANIFEST = {
       parameters: [
         { name: "query", type: "string", required: false, description: "search term" },
         { name: "category", type: "string", required: false, description: "category slug, name, or id" },
-        { name: "min_price", type: "number", required: false },
-        { name: "max_price", type: "number", required: false },
+        { name: "min_price", type: "number", required: false, description: "minimum price filter" },
+        { name: "max_price", type: "number", required: false, description: "maximum price filter" },
         { name: "limit", type: "integer", required: false, default: 5, description: "max 10" },
       ],
     },
     {
       name: "get_product_details",
       description: "Full details for one product including variations.",
-      parameters: [{ name: "product_id", type: "integer", required: true }],
+      parameters: [{ name: "product_id", type: "integer", required: true, description: "product ID to retrieve" }],
     },
     {
       name: "add_to_cart",
       description: "Add a product to the shopper's cart.",
       parameters: [
-        { name: "product_id", type: "integer", required: true },
-        { name: "quantity", type: "integer", required: false, default: 1 },
-        { name: "variation_id", type: "integer", required: false },
+        { name: "product_id", type: "integer", required: true, description: "product ID to add" },
+        { name: "quantity", type: "integer", required: false, default: 1, description: "number of items to add" },
+        { name: "variation_id", type: "integer", required: false, description: "variation ID for variable products" },
       ],
     },
     { name: "view_cart", description: "View the current cart, totals, and checkout URL.", parameters: [] },
     {
       name: "remove_from_cart",
       description: "Remove an item by cart_item_key.",
-      parameters: [{ name: "cart_item_key", type: "string", required: true }],
+      parameters: [{ name: "cart_item_key", type: "string", required: true, description: "cart item key to remove" }],
     },
   ],
 };
@@ -172,15 +172,16 @@ async function dispatch(method, params) {
   }
 }
 
+// --- startup announce ---------------------------------------------------------
+// Write manifest as the very first stdout line so the anna local agent's
+// "Rediscover Local" can discover the tool without sending any stdin command.
+// If called as `describe` CLI arg, exit immediately after (no stdin loop).
+process.stdout.write(JSON.stringify(MANIFEST) + "\n");
+if (process.argv[2] === "describe") process.exit(0);
+
 // --- stdio JSON-RPC 2.0 loop -------------------------------------------------
 // Track in-flight requests so we only exit after all complete (stdin close
 // fires before async fetches resolve when piping input in tests/fixtures).
-// Support CLI `describe` subcommand (used by agent Rediscover Local)
-if (process.argv[2] === "describe") {
-  process.stdout.write(JSON.stringify(MANIFEST) + "\n");
-  process.exit(0);
-}
-
 let inFlight = 0;
 let stdinClosed = false;
 
