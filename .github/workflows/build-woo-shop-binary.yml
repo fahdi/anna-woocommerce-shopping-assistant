@@ -1,0 +1,83 @@
+name: Build woo-shop binary
+
+on:
+  push:
+    tags:
+      - "woo-shop-v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. woo-shop-v0.1.3)"
+        required: true
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: macos-14
+            platform: darwin-arm64
+          - os: macos-13
+            platform: darwin-x86_64
+          - os: ubuntu-latest
+            platform: linux-x86_64
+
+    runs-on: ${{ matrix.os }}
+    name: Build (${{ matrix.platform }})
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install postject globally
+        run: npm install -g postject
+
+      - name: Build binary
+        working-directory: executas/woo-shop
+        run: |
+          npm ci --include=dev
+          ./package_binary.sh "${{ github.workspace }}/dist"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: binary-${{ matrix.platform }}
+          path: dist/tool-fahdmurtaza-woo-shop-n8sy5atm-${{ matrix.platform }}.tar.gz
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Determine tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: ${{ steps.tag.outputs.tag }}
+          body: |
+            woo-shop executa binary release ${{ steps.tag.outputs.tag }}
+
+            Platform binaries built from Node.js 22 SEA (Single Executable Application).
+          files: dist/*.tar.gz
+          fail_on_unmatched_files: true

@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+# Build a Node.js Single Executable Application (SEA) for the woo-shop executa.
+#
+# Usage:
+#   ./package_binary.sh [OUTPUT_DIR]
+#
+# Requires: node >=22, esbuild (npm ci first), postject
+#
+# Output:
+#   <OUTPUT_DIR>/tool-fahdmurtaza-woo-shop-n8sy5atm.tar.gz
+#     └── tool-fahdmurtaza-woo-shop-n8sy5atm   (the binary)
+#
+set -euo pipefail
+
+TOOL_ID="tool-fahdmurtaza-woo-shop-n8sy5atm"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+OUTPUT_DIR="${1:-${SCRIPT_DIR}/dist}"
+
+cd "$SCRIPT_DIR"
+
+echo "=== woo-shop binary packager ==="
+echo "Tool ID : $TOOL_ID"
+echo "Out dir : $OUTPUT_DIR"
+echo
+
+# Detect platform
+OS="$(uname -s)"
+ARCH="$(uname -m)"
+case "$OS-$ARCH" in
+  Darwin-arm64)   PLATFORM="darwin-arm64" ;;
+  Darwin-x86_64)  PLATFORM="darwin-x86_64" ;;
+  Linux-x86_64)   PLATFORM="linux-x86_64" ;;
+  *) echo "Unsupported platform: $OS-$ARCH"; exit 1 ;;
+esac
+echo "Platform: $PLATFORM"
+echo
+
+mkdir -p "$OUTPUT_DIR"
+WORK_DIR="$(mktemp -d)"
+trap 'rm -rf "$WORK_DIR"' EXIT
+
+# ── 1. Install dev deps (esbuild) if not present ─────────────────────────────
+if [ ! -f node_modules/.bin/esbuild ]; then
+  echo "Installing dev dependencies..."
+  npm ci --include=dev
+fi
+
+# ── 2. Bundle ESM sources → single CJS file ──────────────────────────────────
+BUNDLE="$WORK_DIR/bundle.cjs"
+echo "Bundling with esbuild..."
+node_modules/.bin/esbuild index.js \
+  --bundle \
+  --platform=node \
+  --target=node22 \
+  --format=cjs \
+  --outfile="$BUNDLE"
+echo "  → $BUNDLE ($(wc -c < "$BUNDLE") bytes)"
+
+# ── 3. Write SEA config ───────────────────────────────────────────────────────
+SEA_CONFIG="$WORK_DIR/sea-config.json"
+SEA_BLOB="$WORK_DIR/sea.blob"
+cat > "$SEA_CONFIG" <<JSON
+{
+  "main": "$BUNDLE",
+  "output": "$SEA_BLOB",
+  "disableExperimentalSEAWarning": true,
+  "useSnapshot": false,
+  "useCodeCache": true
+}
+JSON
+
+# ── 4. Build the SEA blob ─────────────────────────────────────────────────────
+echo "Building SEA blob..."
+node --experimental-sea-config "$SEA_CONFIG"
+
+# ── 5. Copy node binary and inject the blob ───────────────────────────────────
+NODE_BIN="$(which node)"
+BINARY="$WORK_DIR/$TOOL_ID"
+cp "$NODE_BIN" "$BINARY"
+
+if [ "$OS" = "Darwin" ]; then
+  echo "Removing macOS code signature from node copy..."
+  codesign --remove-signature "$BINARY" || true
+fi
+
+echo "Injecting SEA blob with postject..."
+npx --yes postject "$BINARY" NODE_SEA_BLOB "$SEA_BLOB" \
+  --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2
+
+if [ "$OS" = "Darwin" ]; then
+  echo "Re-signing binary with ad-hoc signature..."
+  codesign --sign - "$BINARY"
+fi
+
+chmod +x "$BINARY"
+echo "  → Binary: $(du -sh "$BINARY" | cut -f1)"
+
+# ── 6. Sanity check ──────────────────────────────────────────────────────────
+echo "Sanity check — describe call:"
+echo '{"jsonrpc":"2.0","id":1,"method":"describe","params":{}}' | "$BINARY" | head -1 | node -e "
+  const d = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
+  if (!d.result || !d.result.tools) { console.error('BAD describe response'); process.exit(1); }
+  console.log('  ✓ describe returned', d.result.tools.length, 'tools');
+" || { echo "Binary sanity check failed!"; exit 1; }
+
+# ── 7. Package as tar.gz ──────────────────────────────────────────────────────
+ARCHIVE_NAME="${TOOL_ID}-${PLATFORM}.tar.gz"
+ARCHIVE_PATH="$OUTPUT_DIR/$ARCHIVE_NAME"
+echo "Creating archive $ARCHIVE_NAME..."
+tar -czf "$ARCHIVE_PATH" -C "$WORK_DIR" "$TOOL_ID"
+echo "  → $(du -sh "$ARCHIVE_PATH" | cut -f1)  $ARCHIVE_PATH"
+
+echo
+echo "=== Done ==="
+echo "Archive: $ARCHIVE_PATH"
