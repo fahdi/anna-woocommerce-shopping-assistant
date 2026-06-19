@@ -594,3 +594,18 @@ const _params = new URLSearchParams(location.search.length > 1 ? location.search
 const _initQ = _params.has("q") ? _params.get("q") : null;
 doSearch(_initQ ?? "");
 
+// Poll for agent-triggered search queries written by the executa via aps.kv.
+// anna.storage.get reads from the same backend as the executa's aps.kv.
+let _lastAgentQ = null;
+(async function pollAgentSearch() {
+  try {
+    const r = await anna.storage.get({ key: "woo_panel_q" });
+    const q = (r && typeof r.value === "string") ? r.value : null;
+    if (q !== null && q !== _lastAgentQ) {
+      _lastAgentQ = q;
+      doSearch(q);
+    }
+  } catch {}
+  setTimeout(pollAgentSearch, 1500);
+})();
+

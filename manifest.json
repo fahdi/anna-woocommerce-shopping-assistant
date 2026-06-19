@@ -27,6 +27,7 @@
     "host_api": {
       "tools": ["bundled:woo-shop"],
       "window": ["set_title"],
+      "storage": ["get"],
       "agent": {
         "tools": ["required:*"]
       }

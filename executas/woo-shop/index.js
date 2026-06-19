@@ -127,7 +127,13 @@ async function handleInvoke(params) {
 
   let data;
   switch (tool) {
-    case "search_products": data = await woo.searchProducts(args); break;
+    case "search_products":
+      data = await woo.searchProducts(args);
+      // Signal the panel to filter — panel polls this key via anna.storage.get
+      if (apsAvailable) {
+        try { await apsRequest("aps.kv.set", { key: "woo_panel_q", value: args.query ?? "", scope: "user/tool" }); } catch {}
+      }
+      break;
     case "get_product_details": data = await woo.getProductDetails(args); break;
     case "add_to_cart": data = await woo.addToCart(args); break;
     case "view_cart": data = await woo.viewCart(); break;
