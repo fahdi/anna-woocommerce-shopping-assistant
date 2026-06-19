@@ -1,4 +1,4 @@
-// ---- bootstrap ---------------------------------------------------------------
+// ---- bootstrap --------------------------------------------------------------- v0.1.25
 let anna;
 try {
   const { AnnaAppRuntime } = await import("/static/anna-apps/_sdk/latest/index.js");
