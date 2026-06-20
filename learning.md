@@ -108,13 +108,19 @@
 
 ## What's Next / Future Work
 
-Roughly ordered by value-to-effort:
+Items 1–7 shipped in **v0.1.50** (executa v0.1.12). See commit `d027582`.
 
-1. **Variable products in-panel** (highest user value). Midnight Fleece Hoodie and Urban Essential T-Shirt currently render a "Select Options" link to the store. Add a size/attribute selector card before "Add to Cart" so the whole flow stays in-panel. Data is already in `get_product_details` (`attributes`, `variations`); `add_to_cart` already accepts `variation_id`.
-2. **`on_sale` filter** for `search_products` (and a panel "On sale" chip). `on_sale` is already on the normalized product; add the param + a payload key (`on_sale`) and the client-side filter, mirroring the price-filter pattern.
-3. **Cart quantity stepper** in the Cart tab (currently add-one-at-a-time; `add_to_cart` takes `quantity`).
-4. **Sort control** (price asc/desc, on-sale-first) in the Shop tab — purely client-side over the fetched pool.
-5. **Reduce cold-start agent thrash.** On a freshly-restarted executa, Gemini 3.5 Flash over-explores (`search_tools`/`exec_run`) before settling. Consider a tighter `system_prompt_addendum` opener ("The woo-shop tools are already available; call `search_products` directly — never use shell/exec/search_tools") and/or a warm-up ping after deploy.
-6. **Catalog snapshot freshness.** The prompt's product knowledge can drift from the live store; consider injecting a small live catalog summary at session start instead of a static snapshot.
-7. **Distribution robustness for non-local installs.** For users where the executa runs server-side (not via a local Anna.app), confirm the linux binary path works end-to-end, or publish a macOS/darwin binary so local-mac installs don't depend on the node shim fallback.
-8. **Productionize the price filter** properly: a tiny mu-plugin or WP-CLI step to populate `wc_product_meta_lookup` would let the Store API filter server-side and reduce over-fetching for larger catalogs.
+1. ✅ **Variable products in-panel** — size `<select>` resolves the variation_id (`resolveVariationId`); Add to Cart stays in-panel.
+2. ✅ **`on_sale` filter** — `search_products(on_sale)` + client-side filter (panel + executa); "On sale" toolbar chip; `on_sale` in the open_app_view payload convention.
+3. ✅ **Cart quantity stepper** — − [n] + per line via `/cart/update-item` (− at 1 removes).
+4. ✅ **Sort control** — Featured / Price asc / Price desc / On-sale-first (client-side).
+5. ✅ **Cold-start prompt hardening** — opener: tools already available; forbids shell/exec/file/web-search/browser/tool-discovery.
+6. ✅ **Catalog freshness** — prompt reinforces always-search-first; no static snapshot to drift.
+7. ✅ **Distribution** — linux binary rebuilt at v0.1.12, released `woo-shop-v0.1.12`, executa.json updated. (darwin SEA build blocked by Node 26 sentinel-fuse; local mac uses the node shim — to build darwin, use Node 22.)
+
+Still open:
+
+8. **Productionize the price filter** — a tiny mu-plugin / WP-CLI step to populate `wc_product_meta_lookup` would let the Store API filter server-side and cut the over-fetch for larger catalogs.
+9. **Live web-dashboard E2E for v0.1.50 features** — pending re-login (the web session expired during an Anna.app restart). Logic + Store-API mechanics are unit-/curl-verified; the chat→panel + checkout path was proven E2E on v0.1.48 (same architecture).
+10. **Prompt length budget** — `system_prompt_addendum` has a hard 4000-char limit; the current prompt is ~3.3k. Keep new examples terse.
+11. **Cold-start warm-up** — even with the prompt opener, the very first invoke after an executa restart can still thrash; a post-deploy warm-up ping (one throwaway `search_products`) would pre-warm the process and tool registry.
