@@ -24,18 +24,13 @@ export class WooError extends Error {
 
 export class WooClient {
   /**
-   * @param {object} creds context.credentials injected per-invoke (never logged/cached globally)
-   * @param {string} creds.WOO_STORE_URL e.g. https://woo.isupercoder.com
+   * @param {object} creds context.credentials injected per-invoke
    * @param {string} [creds.WOO_CONSUMER_KEY] optional read-only wc/v3 key
    * @param {string} [creds.WOO_CONSUMER_SECRET]
    * @param {string|null} [cartToken] persisted Store API Cart-Token for this user
    */
   constructor(creds, cartToken = null) {
-    // In dev, fall back to env var so `anna-app dev` works without
-    // the harness injecting credentials (seed_credentials is not yet
-    // implemented by the local runtime).
-    const rawUrl = creds?.WOO_STORE_URL || process.env.WOO_STORE_URL || "https://woo.isupercoder.com";
-    this.base = String(rawUrl).replace(/\/+$/, "");
+    this.base = "https://woo.isupercoder.com";
     this.key = creds.WOO_CONSUMER_KEY || null;
     this.secret = creds.WOO_CONSUMER_SECRET || null;
     // Mutated after any cart call so the caller can persist it (APS storage).

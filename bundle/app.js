@@ -7,7 +7,7 @@ try {
   anna = devMockAnna();
 }
 
-// ---- WooCommerce client (direct fetch — CORS enabled on store) ---------------
+// ---- WooCommerce client (direct fetch - CORS enabled on store) ---------------
 // The store at DEV_STORE has Access-Control-Allow-Origin: https://anna.partners
 // so all fetches work directly from the panel iframe without a server proxy.
 
@@ -27,7 +27,7 @@ async function storeFetch(path, { method = "GET", body } = {}) {
     const seed = await fetch(API + "/cart", { cache: "no-store", headers: { Accept: "application/json", ...(token ? { "Cart-Token": token } : {}) } });
     const nonce  = seed.headers.get("nonce") || seed.headers.get("x-wc-store-api-nonce");
     const seedTk = seed.headers.get("cart-token");
-    // Only bootstrap token from seed when we have none — CDN may return stale cached tokens
+    // Only bootstrap token from seed when we have none - CDN may return stale cached tokens
     if (seedTk && !token) { saveToken(seedTk); headers["Cart-Token"] = seedTk; }
     if (nonce) headers["Nonce"] = nonce;
   }
@@ -139,7 +139,7 @@ async function doSearch(q) {
     if (isNoSession(err)) {
       noSession = true;
     } else {
-      searchError = err.message ?? "Search failed — try again.";
+      searchError = err.message ?? "Search failed - try again.";
     }
   }
   searching = false;
@@ -155,7 +155,7 @@ async function doAddToCart(productId) {
     updateWindowTitle();
     showToast("Added to cart!");
   } catch (err) {
-    showToast(err.message ?? "Couldn't add item — try again.");
+    showToast(err.message ?? "Couldn't add item - try again.");
   }
   addingId = null;
   render();
@@ -298,7 +298,7 @@ function renderShopTab(root) {
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
         <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
       </svg>
-      <p>Chat with Anna first — she'll search the store and open the results here for you.</p>
+      <p>Chat with Anna first - she'll search the store and open the results here for you.</p>
     `;
     scroll.appendChild(center);
   } else if (searchError) {
@@ -525,13 +525,13 @@ function renderReview(root) {
     list.className = "review-bullets";
     cart.items.forEach((item) => {
       const li = document.createElement("li");
-      li.textContent = `${item.name} × ${item.quantity} — ${item.line_total?.formatted ?? ""}`;
+      li.textContent = `${item.name} × ${item.quantity} - ${item.line_total?.formatted ?? ""}`;
       list.appendChild(li);
     });
     panel.appendChild(list);
   }
   const note = document.createElement("p");
-  note.textContent = "Clicking Proceed will open the store checkout in a new tab. Payment happens on the store's secure page — not here.";
+  note.textContent = "Clicking Proceed will open the store checkout in a new tab. Payment happens on the store's secure page - not here.";
   panel.appendChild(note);
   const actions = el("div", "review-actions");
   actions.appendChild(btn_("Proceed to Checkout", "btn btn-primary", openCheckout));
@@ -586,10 +586,10 @@ function devMockAnna() {
 // ---- init --------------------------------------------------------------------
 render();
 
-// Pre-load cart count for the badge (silently — don't block or show errors on init)
+// Pre-load cart count for the badge (silently - don't block or show errors on init)
 fetchCart().catch(() => {});
 
-// Auto-search on open — URL ?q=QUERY from open_app_view, or default to browse-all
+// Auto-search on open - URL ?q=QUERY from open_app_view, or default to browse-all
 const _params = new URLSearchParams(location.search.length > 1 ? location.search : location.hash.replace(/^#\/?/, ""));
 const _initQ = _params.has("q") ? _params.get("q") : null;
 doSearch(_initQ ?? "");

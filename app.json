@@ -1,9 +1,9 @@
 {
   "slug": "woo-shopping-assistant",
   "name": "WooCommerce Shopping Assistant",
-  "version": "0.1.29",
+  "version": "0.1.35",
   "tagline": "Browse products and build a cart on any WooCommerce store, right inside Anna.",
-  "description": "Turn Anna into a shopping assistant for any WooCommerce store. Search the catalog by keyword, category, or price range; get full product details; add and remove items from your cart; then review everything before heading to the store checkout — all without leaving the conversation.\n\nWorks with the public WooCommerce Store API — only a store URL is required to get started. An optional read-only REST API key unlocks richer catalog data.\n\nNo AI provider keys needed. Anna supplies the model; this app supplies the tools.",
+  "description": "Turn Anna into a shopping assistant for any WooCommerce store. Search the catalog by keyword, category, or price range; get full product details; add and remove items from your cart; then review everything before heading to the store checkout - all without leaving the conversation.\n\nWorks with the public WooCommerce Store API - only a store URL is required to get started. An optional read-only REST API key unlocks richer catalog data.\n\nNo AI provider keys needed. Anna supplies the model; this app supplies the tools.",
   "category": "lifestyle",
   "logo": "bundle/icon.svg",
   "screenshots": [],
@@ -11,6 +11,8 @@
   "privacy_url": "",
   "pricing_model": "free",
   "bundled_executas": {
-    "woo-shop": { "path": "./executas/woo-shop" }
+    "woo-shop": {
+      "path": "./executas/woo-shop"
+    }
   }
 }

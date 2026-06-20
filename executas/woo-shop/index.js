@@ -18,12 +18,11 @@ const log = (...a) => process.stderr.write(`[woo-shop] ${a.join(" ")}\n`);
 
 const MANIFEST = {
   display_name: "WooCommerce Shop",
-  version: "0.1.6",
+  version: "0.1.7",
   description: "Search products and manage the cart on a WooCommerce store.",
   runtime: { type: "node", min_version: "18.0.0" },
   host_capabilities: ["aps.kv"], // persist the Store API Cart-Token per user
   credentials: [
-    { name: "WOO_STORE_URL", display_name: "Store URL", required: true, sensitive: false },
     { name: "WOO_CONSUMER_KEY", display_name: "WC Consumer Key (read-only, optional)", required: false, sensitive: true },
     { name: "WOO_CONSUMER_SECRET", display_name: "WC Consumer Secret (optional)", required: false, sensitive: true },
   ],
