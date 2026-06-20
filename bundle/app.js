@@ -1,4 +1,4 @@
-// ---- bootstrap --------------------------------------------------------------- v0.1.49
+// ---- bootstrap --------------------------------------------------------------- v0.1.52
 let anna;
 try {
   const { AnnaAppRuntime } = await import("/static/anna-apps/_sdk/latest/index.js");
@@ -834,29 +834,33 @@ doSearch(_initFilter);
 // the already-open panel, the host updates THIS window's entry_payload but does
 // NOT push an event to the loaded iframe. So we poll window.hello() — which
 // returns the live entry_payload — and re-run the search when it changes.
-let _lastPayloadKey = JSON.stringify(filterFromPayload(anna.entryPayload));
+// Compare the RAW entry_payload (not the derived filter): the agent re-sends all
+// keys every call, so any change — including clearing a filter back to 0/false —
+// must re-run the search. Comparing the filtered key could collide (0/false drop
+// out) and leave a stale filter showing after rapid back-to-back queries.
+let _lastPayloadRaw = JSON.stringify(anna.entryPayload ?? {});
 async function pollEntryPayload() {
   try {
     if (anna.window && typeof anna.window.hello === "function") {
       const hello = await anna.window.hello({});
-      const f = filterFromPayload(hello?.entry_payload);
-      const key = JSON.stringify(f);
-      if (f && key !== _lastPayloadKey) {
-        _lastPayloadKey = key;
-        tab = "shop";
-        doSearch(f);
+      const raw = JSON.stringify(hello?.entry_payload ?? {});
+      if (raw !== _lastPayloadRaw) {
+        _lastPayloadRaw = raw;
+        const f = filterFromPayload(hello?.entry_payload);
+        if (f) { tab = "shop"; doSearch(f); }
       }
     }
   } catch (_) { /* token refresh races — ignore, retry next tick */ }
-  setTimeout(pollEntryPayload, 1500);
+  setTimeout(pollEntryPayload, 1200);
 }
 pollEntryPayload();
 
 // Also honor the documented entry_payload event in case a future host emits it.
 if (typeof anna.on === "function") {
   anna.on("entry_payload", (p) => {
+    _lastPayloadRaw = JSON.stringify(p ?? {});
     const f = filterFromPayload(p);
-    if (f) { _lastPayloadKey = JSON.stringify(f); tab = "shop"; doSearch(f); }
+    if (f) { tab = "shop"; doSearch(f); }
   });
 }
 
