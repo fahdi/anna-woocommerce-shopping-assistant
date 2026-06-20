@@ -602,7 +602,7 @@ let _lastAgentQ = null;
 window.__wooLastQ = () => _lastAgentQ;
 (async function pollAgentSearch() {
   try {
-    const r = await anna.storage.get({ key: "woo_panel_q" });
+    const r = await anna.storage.get({ key: "woo_panel_q", scope: "user/app" });
     const q = (r && typeof r.value === "string") ? r.value : null;
     if (q !== null && q !== _lastAgentQ) {
       _lastAgentQ = q;
