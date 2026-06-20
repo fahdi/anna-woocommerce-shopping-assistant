@@ -130,7 +130,7 @@ async function handleInvoke(params) {
       data = await woo.searchProducts(args);
       // Signal the panel to filter — panel polls this key via anna.storage.get
       if (apsAvailable) {
-        try { await apsRequest("aps.kv.set", { key: "woo_panel_q", value: args.query ?? "" }); } catch {}
+        try { await apsRequest("aps.kv.set", { key: "woo_panel_q", value: args.query ?? "", scope: "user/app" }); } catch {}
       }
       break;
     case "get_product_details": data = await woo.getProductDetails(args); break;

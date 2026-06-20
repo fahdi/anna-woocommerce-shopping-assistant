@@ -1,6 +1,6 @@
 {
   "name": "@fahadmurtaza/woo-shop",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "type": "module",
   "description": "Anna Executa: WooCommerce Store API tool surface (5 shopping tools).",
   "bin": {
