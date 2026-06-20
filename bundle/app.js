@@ -1,4 +1,4 @@
-// ---- bootstrap --------------------------------------------------------------- v0.1.48
+// ---- bootstrap --------------------------------------------------------------- v0.1.49
 let anna;
 try {
   const { AnnaAppRuntime } = await import("/static/anna-apps/_sdk/latest/index.js");
@@ -59,6 +59,18 @@ function normalizeProduct(p) {
     on_sale:           Boolean(p.on_sale),
     in_stock:          p.is_in_stock !== false,
     has_variations:    p.type === "variable" || (Array.isArray(p.variations) && p.variations.length > 0),
+    // Variation data drives the in-panel size selector. The Store API /products
+    // list already includes these for variable products, so no extra fetch.
+    //   attributes: [{ name, terms: [{ name, slug }] }]  (only variation-driving)
+    //   variations: [{ id, attributes: [{ name, value }] }]  (value = term slug)
+    attributes:        (p.attributes || []).filter((a) => a.has_variations).map((a) => ({
+                         name: a.name,
+                         terms: (a.terms || []).map((t) => ({ name: t.name, slug: t.slug })),
+                       })),
+    variations:        (p.variations || []).map((v) => ({
+                         id: v.id,
+                         attributes: (v.attributes || []).map((va) => ({ name: va.name, value: va.value })),
+                       })),
     short_description: (p.short_description || "").replace(/<[^>]*>/g, "").trim(),
     image:             p.images?.[0]?.src || null,
   };
@@ -88,12 +100,13 @@ function normalizeCart(cart) {
 
 async function wooSearch(filter = {}) {
   const f = typeof filter === "string" ? { query: filter } : (filter || {});
-  const { query = "", min_price, max_price, category } = f;
+  const { query = "", min_price, max_price, category, on_sale } = f;
   const hasPrice = min_price != null && !Number.isNaN(Number(min_price))
     || max_price != null && !Number.isNaN(Number(max_price));
+  const wantSale = on_sale === true || on_sale === "true" || on_sale === 1 || on_sale === "1";
   // The Store API price filter needs a WC lookup table that may be unpopulated,
   // so we over-fetch and filter client-side (mirrors executas/woo-shop/woo-client.js).
-  const perPage = hasPrice || category ? 50 : 12;
+  const perPage = hasPrice || wantSale || category ? 50 : 12;
   const qs = new URLSearchParams();
   if (query)    qs.set("search", query);
   if (category) qs.set("category", category);
@@ -108,12 +121,15 @@ async function wooSearch(filter = {}) {
       return true;
     });
   }
+  if (wantSale) rows = rows.filter((p) => Boolean(p.on_sale));
   rows = rows.slice(0, 12);
   return { count: rows.length, products: rows.map(normalizeProduct) };
 }
 
-async function wooAddToCart(productId, quantity = 1) {
-  const cart = await storeFetch("/cart/add-item", { method: "POST", body: { id: productId, quantity } });
+async function wooAddToCart(productId, quantity = 1, variationId) {
+  // For a variable product the Store API takes the VARIATION id as `id`.
+  const id = variationId ? Number(variationId) : Number(productId);
+  const cart = await storeFetch("/cart/add-item", { method: "POST", body: { id, quantity } });
   return normalizeCart(cart);
 }
 
@@ -124,6 +140,11 @@ async function wooViewCart() {
 
 async function wooRemoveFromCart(key) {
   const cart = await storeFetch("/cart/remove-item", { method: "POST", body: { key } });
+  return normalizeCart(cart);
+}
+
+async function wooUpdateCartItem(key, quantity) {
+  const cart = await storeFetch("/cart/update-item", { method: "POST", body: { key, quantity } });
   return normalizeCart(cart);
 }
 
@@ -142,6 +163,10 @@ let cartPhase = "cart";   // "cart" | "review" | "error"
 let cartError = "";
 let removingKey = null;
 let addingId = null;
+let updatingKey = null;   // cart_item_key whose quantity is being changed
+
+let sortMode = "relevance";        // "relevance" | "price-asc" | "price-desc" | "sale"
+const selectedVariations = {};     // product_id -> { attrName: termSlug } for the size selector
 
 let toastMsg = "";
 let toastTimer = null;
@@ -170,18 +195,35 @@ async function doSearch(filter) {
   render();
 }
 
-async function doAddToCart(productId) {
+async function doAddToCart(productId, variationId) {
   if (addingId !== null) return;
   addingId = productId;
   render();
   try {
-    cart = await wooAddToCart(productId, 1);
+    cart = await wooAddToCart(productId, 1, variationId);
     updateWindowTitle();
     showToast("Added to cart!");
   } catch (err) {
     showToast(err.message ?? "Couldn't add item - try again.");
   }
   addingId = null;
+  render();
+}
+
+// Change a cart line's quantity. quantity <= 0 removes the line.
+async function doUpdateQty(key, quantity) {
+  if (updatingKey || removingKey) return;
+  updatingKey = key;
+  render();
+  try {
+    cart = quantity <= 0
+      ? await wooRemoveFromCart(key)
+      : await wooUpdateCartItem(key, quantity);
+    updateWindowTitle();
+  } catch (err) {
+    showToast(err.message ?? "Couldn't update quantity - try again.");
+  }
+  updatingKey = null;
   render();
 }
 
@@ -310,6 +352,36 @@ function renderShopTab(root) {
   searchWrap.appendChild(searchBtn);
   root.appendChild(searchWrap);
 
+  // Toolbar: On-sale toggle + sort control.
+  const toolbar = el("div", "shop-toolbar");
+
+  const saleChip = el("button", "chip" + (searchFilter?.on_sale ? " chip-active" : ""));
+  saleChip.textContent = "On sale";
+  saleChip.disabled = searching;
+  saleChip.addEventListener("click", () => {
+    const next = { ...(searchFilter || {}) };
+    if (next.on_sale) delete next.on_sale; else next.on_sale = true;
+    doSearch(next);
+  });
+  toolbar.appendChild(saleChip);
+
+  const sortSelect = document.createElement("select");
+  sortSelect.className = "sort-select";
+  [
+    ["relevance", "Sort: Featured"],
+    ["price-asc", "Price: Low to High"],
+    ["price-desc", "Price: High to Low"],
+    ["sale", "On sale first"],
+  ].forEach(([value, label]) => {
+    const opt = document.createElement("option");
+    opt.value = value; opt.textContent = label;
+    if (value === sortMode) opt.selected = true;
+    sortSelect.appendChild(opt);
+  });
+  sortSelect.addEventListener("change", () => { sortMode = sortSelect.value; render(); });
+  toolbar.appendChild(sortSelect);
+  root.appendChild(toolbar);
+
   const scroll = el("div", "scroll-area");
 
   if (searching) {
@@ -350,7 +422,7 @@ function renderShopTab(root) {
     scroll.appendChild(count);
 
     const grid = el("div", "product-grid");
-    products.products.forEach((p) => grid.appendChild(renderProductCard(p)));
+    sortProducts(products.products).forEach((p) => grid.appendChild(renderProductCard(p)));
     scroll.appendChild(grid);
   }
 
@@ -418,7 +490,39 @@ function renderProductCard(p) {
     actionRow.appendChild(viewLink);
   }
 
-  if (p.has_variations) {
+  if (p.has_variations && p.attributes.length && p.variations.length) {
+    // In-panel variation (e.g. Size) selector — keeps the purchase in the panel.
+    const sel = selectedVariations[p.id] || (selectedVariations[p.id] = {});
+    p.attributes.forEach((attr) => {
+      const vrow = el("div", "variation-row");
+      const select = document.createElement("select");
+      select.className = "variation-select";
+      const ph = document.createElement("option");
+      ph.value = ""; ph.textContent = `Choose ${attr.name}`;
+      select.appendChild(ph);
+      attr.terms.forEach((t) => {
+        const opt = document.createElement("option");
+        opt.value = t.slug; opt.textContent = t.name;
+        if (sel[attr.name] === t.slug) opt.selected = true;
+        select.appendChild(opt);
+      });
+      select.addEventListener("change", () => { sel[attr.name] = select.value; render(); });
+      vrow.appendChild(select);
+      // actionRow is appended to body after this block, so a plain append keeps
+      // the selector above the action row.
+      body.appendChild(vrow);
+    });
+
+    const variationId = resolveVariationId(p, sel);
+    const allChosen = p.attributes.every((a) => sel[a.name]);
+    const isAdding = addingId === p.id;
+    const atcBtn = el("button", "btn btn-atc" + (isAdding ? " loading" : ""));
+    atcBtn.textContent = isAdding ? "Adding…" : !allChosen ? "Choose options" : variationId ? "Add to Cart" : "Unavailable";
+    atcBtn.disabled = isAdding || !allChosen || !variationId || addingId !== null;
+    atcBtn.addEventListener("click", () => doAddToCart(p.id, variationId));
+    actionRow.appendChild(atcBtn);
+  } else if (p.has_variations) {
+    // No variation data on hand — fall back to the store's options page.
     const optBtn = document.createElement("a");
     optBtn.className = "btn btn-atc";
     optBtn.href = p.permalink;
@@ -511,12 +615,28 @@ function renderCartItem(item) {
   }
   const body   = el("div", "item-body");
   const name   = el("div", "item-name"); name.textContent = item.name; body.appendChild(name);
-  const meta   = el("div", "item-meta"); meta.textContent = `Qty: ${item.quantity}`; body.appendChild(meta);
+
+  // Quantity stepper: − [n] +  (− at qty 1 removes the line).
+  const busy = updatingKey === item.cart_item_key;
+  const stepper = el("div", "qty-stepper");
+  const dec = el("button", "qty-btn");
+  dec.textContent = "−";
+  dec.disabled = busy || updatingKey !== null || removingKey !== null;
+  dec.addEventListener("click", () => doUpdateQty(item.cart_item_key, item.quantity - 1));
+  const qty = el("span", "qty-value");
+  qty.textContent = busy ? "…" : String(item.quantity);
+  const inc = el("button", "qty-btn");
+  inc.textContent = "+";
+  inc.disabled = busy || updatingKey !== null || removingKey !== null;
+  inc.addEventListener("click", () => doUpdateQty(item.cart_item_key, item.quantity + 1));
+  stepper.appendChild(dec); stepper.appendChild(qty); stepper.appendChild(inc);
+  body.appendChild(stepper);
+
   const footer = el("div", "item-footer");
   const price  = el("div", "item-price"); price.textContent = item.line_total?.formatted ?? ""; footer.appendChild(price);
   const rm     = el("button", "btn-remove");
   rm.textContent = removingKey === item.cart_item_key ? "Removing…" : "Remove";
-  rm.disabled    = removingKey !== null;
+  rm.disabled    = removingKey !== null || updatingKey !== null;
   rm.addEventListener("click", () => removeItem(item.cart_item_key));
   footer.appendChild(rm);
   body.appendChild(footer);
@@ -574,13 +694,38 @@ function renderToast() {
 // ---- result labelling --------------------------------------------------------
 // Human label for the active filter, e.g. ' for "tie" under $20'.
 function describeFilterSuffix() {
-  const { query, min_price, max_price } = searchFilter || {};
+  const { query, min_price, max_price, on_sale } = searchFilter || {};
   const parts = [];
   if (query) parts.push(` for "${query}"`);
+  if (on_sale) parts.push(" on sale");
   if (min_price != null && max_price != null) parts.push(` between $${min_price} and $${max_price}`);
   else if (max_price != null)                 parts.push(` under $${max_price}`);
   else if (min_price != null)                 parts.push(` over $${min_price}`);
   return parts.join("");
+}
+
+// Resolve the variation_id whose attributes match the shopper's selections.
+// Returns null until every variation attribute has been chosen (empty value = "any").
+function resolveVariationId(p, sel) {
+  const match = (p.variations || []).find((v) =>
+    (p.attributes || []).every((attr) => {
+      const chosen = sel[attr.name];
+      if (!chosen) return false;
+      const va = (v.attributes || []).find((x) => x.name === attr.name);
+      return !va || va.value === "" || va.value === chosen;
+    })
+  );
+  return match ? match.id : null;
+}
+
+// Sort a copy of the product list by the active sortMode (client-side, no refetch).
+function sortProducts(list) {
+  const arr = list.slice();
+  const amt = (p) => p.price?.amount ?? 0;
+  if (sortMode === "price-asc")  arr.sort((a, b) => amt(a) - amt(b));
+  else if (sortMode === "price-desc") arr.sort((a, b) => amt(b) - amt(a));
+  else if (sortMode === "sale")  arr.sort((a, b) => Number(b.on_sale) - Number(a.on_sale));
+  return arr;
 }
 
 function describeResults(n) {
@@ -665,17 +810,19 @@ function filterFromUrl() {
 // so a cleared filter actually clears.
 function filterFromPayload(p) {
   if (!p || typeof p !== "object") return null;
-  const keys = ["q", "query", "min_price", "max_price", "category"];
+  const keys = ["q", "query", "min_price", "max_price", "category", "on_sale"];
   if (!keys.some((k) => k in p)) return null;
   const price = (v) => {
     const n = Number(v);
     return v == null || v === "" || Number.isNaN(n) || n <= 0 ? undefined : n;
   };
+  const truthy = (v) => v === true || v === 1 || v === "1" || v === "true";
   return {
     query:     p.q ?? p.query ?? "",
     min_price: price(p.min_price),
     max_price: price(p.max_price),
     category:  (p.category === "" || p.category == null) ? undefined : p.category,
+    on_sale:   truthy(p.on_sale) || undefined,
   };
 }
 

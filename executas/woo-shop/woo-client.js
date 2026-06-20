@@ -153,14 +153,15 @@ export class WooClient {
 
   // ---- the five tools -------------------------------------------------------
 
-  async searchProducts({ query, category, min_price, max_price, limit = 5 } = {}) {
+  async searchProducts({ query, category, min_price, max_price, on_sale, limit = 5 } = {}) {
     const per_page = Math.min(Number(limit) || 5, 10);
     const categoryId = await this._categoryId(category);
     const hasPriceFilter = min_price != null || max_price != null;
-    // When price filtering, fetch more to have enough to filter from.
+    const wantSale = on_sale === true || on_sale === "true" || on_sale === 1 || on_sale === "1";
+    // When price/sale filtering, fetch more to have enough to filter from.
     // The Store API price filter requires a WC lookup table that may not be populated;
     // we filter client-side on the minor-unit price field instead.
-    const fetchSize = hasPriceFilter ? 50 : per_page;
+    const fetchSize = hasPriceFilter || wantSale ? 50 : per_page;
     const products = await this._storeFetch("/products", {
       query: { search: query, category: categoryId, per_page: fetchSize },
     });
@@ -183,6 +184,8 @@ export class WooClient {
         return true;
       });
     }
+    // Client-side on-sale filter.
+    if (wantSale) pool = pool.filter((p) => Boolean(p.on_sale));
     const page = pool.slice(0, per_page);
     return { count: page.length, products: page.map((p) => this._normalizeProduct(p)) };
   }

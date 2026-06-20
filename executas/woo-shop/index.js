@@ -18,7 +18,7 @@ const log = (...a) => process.stderr.write(`[woo-shop] ${a.join(" ")}\n`);
 
 const MANIFEST = {
   display_name: "WooCommerce Shop",
-  version: "0.1.11",
+  version: "0.1.12",
   description: "Search products and manage the cart on a WooCommerce store.",
   runtime: { type: "node", min_version: "18.0.0" },
   host_capabilities: ["aps.kv"], // persist the Store API Cart-Token per user
@@ -29,12 +29,13 @@ const MANIFEST = {
   tools: [
     {
       name: "search_products",
-      description: "Search products by name, category, or price range.",
+      description: "Search products by name, category, price range, or on-sale status.",
       parameters: [
         { name: "query", type: "string", required: false, description: "search term" },
         { name: "category", type: "string", required: false, description: "category slug, name, or id" },
         { name: "min_price", type: "number", required: false, description: "minimum price filter" },
         { name: "max_price", type: "number", required: false, description: "maximum price filter" },
+        { name: "on_sale", type: "boolean", required: false, description: "only products currently on sale" },
         { name: "limit", type: "integer", required: false, default: 5, description: "max 10" },
       ],
     },
@@ -128,10 +129,8 @@ async function handleInvoke(params) {
   switch (tool) {
     case "search_products":
       data = await woo.searchProducts(args);
-      // Signal the panel to filter — panel polls this key via anna.storage.get
-      if (apsAvailable) {
-        try { await apsRequest("aps.kv.set", { key: "woo_panel_q", value: args.query ?? "", scope: "user/app" }); } catch {}
-      }
+      // (Panel sync is driven by the agent's open_app_view → entry_payload, not
+      // by executa storage — aps.kv and the app's anna.storage are separate stores.)
       break;
     case "get_product_details": data = await woo.getProductDetails(args); break;
     case "add_to_cart": data = await woo.addToCart(args); break;
