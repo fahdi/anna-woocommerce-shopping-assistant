@@ -1,32 +1,48 @@
 {
   "slug": "woo-shop",
   "name": "WooCommerce Shop",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "tool_id": "tool-fahdmurtaza-woo-shop-n8sy5atm",
   "executa_type": "tool",
   "type": "node",
   "entry": "index.js",
-  "min_node_version": "22.0.0",
+  "min_node_version": "18.0.0",
   "distribution": {
     "active": "binary",
     "profiles": {
-      "npm": {
-        "type": "npm",
-        "package_name": "@fahadmurtaza/woo-shop",
-        "version": "0.1.12",
-        "capabilities": [
-          "aps.kv"
-        ]
-      },
       "binary": {
         "type": "binary",
         "capabilities": [
           "aps.kv"
         ],
         "binary_urls": {
+          "darwin-arm64": {
+            "url": "https://github.com/fahdi/anna-woocommerce-shopping-assistant/releases/download/woo-shop-v0.1.13/tool-fahdmurtaza-woo-shop-n8sy5atm.tar.gz",
+            "sha256": "6ada97f66b3b3782e655cd12497654bdb5a7c9ca72370b134f6132c0c6d2a4e1",
+            "size": 6059,
+            "entrypoint": "bin/tool-fahdmurtaza-woo-shop-n8sy5atm",
+            "format": "tar.gz"
+          },
+          "darwin-x86_64": {
+            "url": "https://github.com/fahdi/anna-woocommerce-shopping-assistant/releases/download/woo-shop-v0.1.13/tool-fahdmurtaza-woo-shop-n8sy5atm.tar.gz",
+            "sha256": "6ada97f66b3b3782e655cd12497654bdb5a7c9ca72370b134f6132c0c6d2a4e1",
+            "size": 6059,
+            "entrypoint": "bin/tool-fahdmurtaza-woo-shop-n8sy5atm",
+            "format": "tar.gz"
+          },
           "linux-x86_64": {
-            "url": "https://github.com/fahdi/anna-woocommerce-shopping-assistant/releases/download/woo-shop-v0.1.12/tool-fahdmurtaza-woo-shop-n8sy5atm-linux-x86_64.tar.gz",
-            "entrypoint": "tool-fahdmurtaza-woo-shop-n8sy5atm"
+            "url": "https://github.com/fahdi/anna-woocommerce-shopping-assistant/releases/download/woo-shop-v0.1.13/tool-fahdmurtaza-woo-shop-n8sy5atm.tar.gz",
+            "sha256": "6ada97f66b3b3782e655cd12497654bdb5a7c9ca72370b134f6132c0c6d2a4e1",
+            "size": 6059,
+            "entrypoint": "bin/tool-fahdmurtaza-woo-shop-n8sy5atm",
+            "format": "tar.gz"
+          },
+          "linux-aarch64": {
+            "url": "https://github.com/fahdi/anna-woocommerce-shopping-assistant/releases/download/woo-shop-v0.1.13/tool-fahdmurtaza-woo-shop-n8sy5atm.tar.gz",
+            "sha256": "6ada97f66b3b3782e655cd12497654bdb5a7c9ca72370b134f6132c0c6d2a4e1",
+            "size": 6059,
+            "entrypoint": "bin/tool-fahdmurtaza-woo-shop-n8sy5atm",
+            "format": "tar.gz"
           }
         }
       }
