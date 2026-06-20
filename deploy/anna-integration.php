@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Anna WooCommerce Integration
  * Description: CORS for anna.partners panel and Store API Cart-Token checkout bridge.
- * Version: 1.1.0
+ * Version: 1.2.0
  */
 
 // --- CORS: allow anna.partners to call the Store API from the panel iframe ---
@@ -49,9 +49,14 @@ add_action('init', function() {
     if ($sk && preg_match('/^t_[a-f0-9]+$/', $sk)) {
         $exp    = time() + 172800;
         $expiry = time() + 169200;
-        $hash   = hash_hmac('md5', $sk . '|' . $exp, wp_hash($sk . '|' . $exp));
-        $val    = $sk . '|' . $exp . '|' . $expiry . '|' . $hash;
-        $name   = apply_filters('woocommerce_cookie', 'wp_woocommerce_session_' . COOKIEHASH);
+        // WP 6.8+ uses wp_fast_hash (sodium BLAKE2b); older WP uses hash_hmac('md5').
+        // Must match WC_Session_Handler::hash() exactly or get_session_cookie() rejects it.
+        $message = $sk . '|' . $exp;
+        $hash = function_exists('wp_fast_hash')
+            ? wp_fast_hash($message)
+            : hash_hmac('md5', $message, wp_hash($message));
+        $val  = $sk . '|' . $exp . '|' . $expiry . '|' . $hash;
+        $name = apply_filters('woocommerce_cookie', 'wp_woocommerce_session_' . COOKIEHASH);
         header('X-Anna-Bridge: 1');
         wc_setcookie($name, $val, $exp, true, true);
     }
