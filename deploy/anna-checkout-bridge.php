@@ -2,8 +2,18 @@
 /**
  * Plugin Name: Anna Checkout Bridge
  * Description: Bridges Store API Cart-Token session to WooCommerce PHP session cookie for checkout.
- * Version: 1.1.0
+ * Version: 1.2.0
  */
+
+// Expose the Store API nonce response header to cross-origin callers (anna.partners panel).
+// WooCommerce sends the nonce in the `Nonce` header but doesn't include it in
+// Access-Control-Expose-Headers, so browsers silently drop it — causing 401 on cart writes.
+add_filter( 'rest_pre_serve_request', function ( $served, $result, $request ) {
+    if ( false !== strpos( $request->get_route(), '/wc/store/v1' ) ) {
+        header( 'Access-Control-Expose-Headers: X-WP-Total, X-WP-TotalPages, Link, Cart-Token, Nonce' );
+    }
+    return $served;
+}, 99, 3 );
 
 add_action( 'init', function () {
     if ( empty( $_GET['anna_checkout'] ) ) return;
