@@ -322,7 +322,9 @@ function renderShopTab(root) {
     scroll.appendChild(center);
   } else {
     const count = el("div", "results-count");
-    count.textContent = `${products.count} result${products.count !== 1 ? "s" : ""} for "${searchQuery}"`;
+    count.textContent = searchQuery
+      ? `${products.count} result${products.count !== 1 ? "s" : ""} for "${searchQuery}"`
+      : `${products.count} product${products.count !== 1 ? "s" : ""} available`;
     scroll.appendChild(count);
 
     const grid = el("div", "product-grid");
