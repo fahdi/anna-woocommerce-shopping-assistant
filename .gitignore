@@ -1,1 +1,4 @@
 node_modules/
+.playwright-mcp/
+executas/woo-shop/dist/
+*.tar.gz

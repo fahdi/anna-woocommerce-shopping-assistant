@@ -1,4 +1,4 @@
-// ---- bootstrap --------------------------------------------------------------- v0.1.27
+// ---- bootstrap --------------------------------------------------------------- v0.1.48
 let anna;
 try {
   const { AnnaAppRuntime } = await import("/static/anna-apps/_sdk/latest/index.js");
@@ -86,8 +86,29 @@ function normalizeCart(cart) {
 
 // ---- unified API -------------------------------------------------------------
 
-async function wooSearch(query) {
-  const rows = await storeFetch(`/products?search=${encodeURIComponent(query)}&per_page=12`);
+async function wooSearch(filter = {}) {
+  const f = typeof filter === "string" ? { query: filter } : (filter || {});
+  const { query = "", min_price, max_price, category } = f;
+  const hasPrice = min_price != null && !Number.isNaN(Number(min_price))
+    || max_price != null && !Number.isNaN(Number(max_price));
+  // The Store API price filter needs a WC lookup table that may be unpopulated,
+  // so we over-fetch and filter client-side (mirrors executas/woo-shop/woo-client.js).
+  const perPage = hasPrice || category ? 50 : 12;
+  const qs = new URLSearchParams();
+  if (query)    qs.set("search", query);
+  if (category) qs.set("category", category);
+  qs.set("per_page", String(perPage));
+  let rows = await storeFetch(`/products?${qs.toString()}`);
+  if (hasPrice) {
+    rows = rows.filter((p) => {
+      const minor   = Number(p.prices?.currency_minor_unit ?? 2);
+      const dollars = Number(p.prices?.price ?? 0) / 10 ** minor;
+      if (min_price != null && !Number.isNaN(Number(min_price)) && dollars < Number(min_price)) return false;
+      if (max_price != null && !Number.isNaN(Number(max_price)) && dollars > Number(max_price)) return false;
+      return true;
+    });
+  }
+  rows = rows.slice(0, 12);
   return { count: rows.length, products: rows.map(normalizeProduct) };
 }
 
@@ -109,6 +130,7 @@ async function wooRemoveFromCart(key) {
 // ---- state -------------------------------------------------------------------
 let tab = "shop";
 let searchQuery = "";
+let searchFilter = { query: "" };  // { query, min_price?, max_price?, category? }
 let products = null;      // null | { count, products: [] }
 let searching = false;
 let searchError = "";
@@ -126,14 +148,16 @@ let toastTimer = null;
 
 // ---- actions -----------------------------------------------------------------
 
-async function doSearch(q) {
-  searchQuery = q;
+async function doSearch(filter) {
+  const f = typeof filter === "string" ? { query: filter } : (filter || { query: "" });
+  searchFilter = f;
+  searchQuery = f.query || "";
   searchError = "";
   noSession = false;
   searching = true;
   render();
   try {
-    products = await wooSearch(q);
+    products = await wooSearch(f);
   } catch (err) {
     products = null;
     if (isNoSession(err)) {
@@ -317,14 +341,12 @@ function renderShopTab(root) {
   } else if (products.count === 0) {
     const center = el("div", "state-center");
     const p = document.createElement("p");
-    p.textContent = `No products found for "${searchQuery}"`;
+    p.textContent = `No products found${describeFilterSuffix()}`;
     center.appendChild(p);
     scroll.appendChild(center);
   } else {
     const count = el("div", "results-count");
-    count.textContent = searchQuery
-      ? `${products.count} result${products.count !== 1 ? "s" : ""} for "${searchQuery}"`
-      : `${products.count} product${products.count !== 1 ? "s" : ""} available`;
+    count.textContent = describeResults(products.count);
     scroll.appendChild(count);
 
     const grid = el("div", "product-grid");
@@ -549,6 +571,24 @@ function renderToast() {
   return toast;
 }
 
+// ---- result labelling --------------------------------------------------------
+// Human label for the active filter, e.g. ' for "tie" under $20'.
+function describeFilterSuffix() {
+  const { query, min_price, max_price } = searchFilter || {};
+  const parts = [];
+  if (query) parts.push(` for "${query}"`);
+  if (min_price != null && max_price != null) parts.push(` between $${min_price} and $${max_price}`);
+  else if (max_price != null)                 parts.push(` under $${max_price}`);
+  else if (min_price != null)                 parts.push(` over $${min_price}`);
+  return parts.join("");
+}
+
+function describeResults(n) {
+  const suffix = describeFilterSuffix();
+  if (suffix) return `${n} result${n !== 1 ? "s" : ""}${suffix}`;
+  return `${n} product${n !== 1 ? "s" : ""} available`;
+}
+
 // ---- DOM helpers -------------------------------------------------------------
 
 function el(tag, cls) {
@@ -580,7 +620,12 @@ function cartImgPlaceholder() {
 
 function devMockAnna() {
   return {
-    window: { set_title: ({ title } = {}) => { document.title = title ?? "Shop"; } },
+    entryPayload: {},
+    on: () => () => {},  // no-op subscribe returning a no-op unsubscribe
+    window: {
+      set_title: ({ title } = {}) => { document.title = title ?? "Shop"; },
+      hello: async () => ({ entry_payload: {} }),
+    },
     tools:  { invoke: async () => ({ success: false, error: "Plugin not found (dev mock)" }) },
   };
 }
@@ -591,24 +636,80 @@ render();
 // Pre-load cart count for the badge (silently - don't block or show errors on init)
 fetchCart().catch(() => {});
 
-// Auto-search on open - URL ?q=QUERY from open_app_view, or default to browse-all
-const _params = new URLSearchParams(location.search.length > 1 ? location.search : location.hash.replace(/^#\/?/, ""));
-const _initQ = _params.has("q") ? _params.get("q") : null;
-doSearch(_initQ ?? "");
+// Auto-search on open. The agent drives the panel by calling
+//   open_app_view(view="cart", payload={ q, min_price, max_price })
+// The host delivers that payload as the window's entry_payload — available on
+// connect (anna.entryPayload) AND re-delivered as an "entry_payload" event when
+// the agent re-opens the already-open panel (single_instance view). We do NOT
+// poll anna.storage: the executa's aps.kv and the app's anna.storage are
+// separate stores, so that bridge never delivered the query.
+function filterFromUrl() {
+  const p = new URLSearchParams(location.search.length > 1 ? location.search : location.hash.replace(/^#\/?/, ""));
+  const num = (k) => (p.has(k) && p.get(k) !== "" ? Number(p.get(k)) : undefined);
+  return {
+    query:     p.has("q") ? p.get("q") : "",
+    min_price: num("min_price"),
+    max_price: num("max_price"),
+    category:  p.has("category") && p.get("category") !== "" ? p.get("category") : undefined,
+  };
+}
 
-// Poll for agent-triggered search queries written by the executa via aps.kv.
-// anna.storage.get reads from the same backend as the executa's aps.kv.
-let _lastAgentQ = null;
-window.__wooLastQ = () => _lastAgentQ;
-(async function pollAgentSearch() {
+// Build a filter from an agent-supplied payload ({ q|query, min_price, max_price,
+// category }). Returns null when the payload carries no search intent.
+//
+// IMPORTANT: open_app_view MERGES the payload into the window's existing
+// entry_payload (shallow, last-writer-wins per key) — it does NOT replace it. So
+// a stale price filter survives a later text search unless the agent re-sends
+// the price keys. By convention the agent always sends all three keys, using 0
+// (or empty) to mean "no price limit"; we map 0/empty/null/negative → undefined
+// so a cleared filter actually clears.
+function filterFromPayload(p) {
+  if (!p || typeof p !== "object") return null;
+  const keys = ["q", "query", "min_price", "max_price", "category"];
+  if (!keys.some((k) => k in p)) return null;
+  const price = (v) => {
+    const n = Number(v);
+    return v == null || v === "" || Number.isNaN(n) || n <= 0 ? undefined : n;
+  };
+  return {
+    query:     p.q ?? p.query ?? "",
+    min_price: price(p.min_price),
+    max_price: price(p.max_price),
+    category:  (p.category === "" || p.category == null) ? undefined : p.category,
+  };
+}
+
+// First paint: entry_payload (agent) wins, else URL params, else browse-all.
+const _initFilter = filterFromPayload(anna.entryPayload) ?? filterFromUrl();
+doSearch(_initFilter);
+
+// Live sync: when the agent calls open_app_view(view="cart", payload={...}) on
+// the already-open panel, the host updates THIS window's entry_payload but does
+// NOT push an event to the loaded iframe. So we poll window.hello() — which
+// returns the live entry_payload — and re-run the search when it changes.
+let _lastPayloadKey = JSON.stringify(filterFromPayload(anna.entryPayload));
+async function pollEntryPayload() {
   try {
-    const r = await anna.storage.get({ key: "woo_panel_q", scope: "user/app" });
-    const q = (r && typeof r.value === "string") ? r.value : null;
-    if (q !== null && q !== _lastAgentQ) {
-      _lastAgentQ = q;
-      doSearch(q);
+    if (anna.window && typeof anna.window.hello === "function") {
+      const hello = await anna.window.hello({});
+      const f = filterFromPayload(hello?.entry_payload);
+      const key = JSON.stringify(f);
+      if (f && key !== _lastPayloadKey) {
+        _lastPayloadKey = key;
+        tab = "shop";
+        doSearch(f);
+      }
     }
-  } catch(e) { console.error('[woo-poll]', e?.message ?? String(e)); }
-  setTimeout(pollAgentSearch, 1500);
-})();
+  } catch (_) { /* token refresh races — ignore, retry next tick */ }
+  setTimeout(pollEntryPayload, 1500);
+}
+pollEntryPayload();
+
+// Also honor the documented entry_payload event in case a future host emits it.
+if (typeof anna.on === "function") {
+  anna.on("entry_payload", (p) => {
+    const f = filterFromPayload(p);
+    if (f) { _lastPayloadKey = JSON.stringify(f); tab = "shop"; doSearch(f); }
+  });
+}
 

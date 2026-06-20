@@ -114,13 +114,16 @@ test("invoke unknown tool returns success:false", async () => {
   assert.ok(r[1].result.error?.message);
 });
 
-test("invoke missing WOO_STORE_URL returns success:false", async () => {
+test("invoke without credentials still works (store URL is hardcoded)", async () => {
+  // The store base is hardcoded to https://woo.isupercoder.com and the Store API
+  // cart endpoint is guest-accessible, so view_cart succeeds with no credentials.
   const r = await run([
     { jsonrpc: "2.0", id: 1, method: "invoke",
       params: { tool: "view_cart", arguments: {}, context: { credentials: {} } } },
   ]);
-  assert.equal(r[1].result.success, false);
-  assert.match(r[1].result.error.message, /WOO_STORE_URL/);
+  assert.equal(r[1].result.success, true);
+  assert.ok(r[1].result.data, "view_cart returns a cart object");
+  assert.ok("checkout_url" in r[1].result.data);
 });
 
 // ---- APS kv round-trip -------------------------------------------------------

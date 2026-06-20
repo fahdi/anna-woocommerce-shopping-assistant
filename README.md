@@ -18,16 +18,17 @@ User message
     │
     ▼
 Anna (LLM)
-    ├── search_products(query)   ← executa tool (server-side, WC REST API)
-    └── open_app_view(url)       ← host API call → opens the panel SPA
-                                                         │
-                                                         ▼
-                                              Panel SPA (bundle/app.js)
-                                                  │
-                                                  └── WC Store API (browser → store)
-                                                        /wc/store/v1/products
-                                                        /wc/store/v1/cart
-                                                        /wc/store/v1/cart/add-item
+    ├── search_products(query, min_price, max_price)   ← executa tool (WC Store API)
+    └── open_app_view(view="cart", payload={q,min_price,max_price})
+                                 │   ← host API call: sets the window's entry_payload
+                                 ▼
+                       Panel SPA (bundle/app.js)
+                          │   polls anna.window.hello() → reads entry_payload,
+                          │   re-runs the search in place when it changes
+                          └── WC Store API (browser → store)
+                                /wc/store/v1/products   (price filter applied client-side)
+                                /wc/store/v1/cart
+                                /wc/store/v1/cart/add-item
                                                         /wc/store/v1/cart/remove-item
                                                         /wc/store/v1/checkout
 ```
@@ -117,18 +118,27 @@ WooCommerce /checkout/ with cart intact
 ### Anna's system prompt
 
 `manifest.json` → `system_prompt_addendum` tells Anna:
-1. Call `search_products(query)` to query the live catalog
-2. Call `open_app_view('index.html?q=QUERY')` to show the panel
-3. Reply naturally based on what was found — no canned responses, no inventing product data
+1. Call `search_products(query, min_price, max_price)` to query the live catalog (for an accurate count in the reply)
+2. Call `open_app_view(view="cart", payload={ q, min_price, max_price })` to push the same search to the panel
+3. Reply in one sentence based on what was found — no canned responses, no inventing product data
+
+### Panel sync (entry_payload)
+
+`open_app_view`'s `payload` becomes the window's `entry_payload`. The panel reads it on connect **and** polls `anna.window.hello()` (~1.5 s) to pick up later searches, because the host updates `entry_payload` on an already-open window without emitting an event.
+
+The host **merges** each payload onto the previous one (it does not replace), so a stale price filter would otherwise stick across searches. To avoid that, the agent always sends all three keys — `q`, `min_price`, `max_price` — using `0` for "no price limit"; the panel maps `0`/empty → no filter.
+
+Price filtering is done **client-side** in the panel and the executa: the WC Store API `min_price`/`max_price` params require a lookup table that is not populated on every store, so we over-fetch and filter on `prices.price` (minor units) instead.
 
 ### Browse-all
 
-`open_app_view('index.html?q=')` (empty string) triggers browse-all. The panel detects `?q=` via `_params.has("q")` (not truthiness check — empty string is a valid query).
+`payload={ q: "", min_price: 0, max_price: 0 }` triggers browse-all. The panel also still honors a `?q=` URL param as a fallback when opened without a payload.
 
 ## Versions
 
 | Version | Change |
 |---------|--------|
+| 0.1.48 | Chat→panel sync via `entry_payload` poll; client-side price filtering in panel + executa; all-keys payload convention fixes stale-filter merge; `single_instance` panel |
 | 0.1.18 | Checkout bridge URL (`/?anna_checkout=JWT`) |
 | 0.1.17 | Intent-driven prompt: search_products → open_app_view → natural reply |
 | 0.1.16 | Panel-first UX, browse-all fix, CDN cache fix (`per_page=12`) |

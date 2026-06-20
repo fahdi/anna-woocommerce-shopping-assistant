@@ -156,24 +156,35 @@ export class WooClient {
   async searchProducts({ query, category, min_price, max_price, limit = 5 } = {}) {
     const per_page = Math.min(Number(limit) || 5, 10);
     const categoryId = await this._categoryId(category);
-    // Store API expects prices in minor units (cents); LLM sends whole dollars.
-    const minPriceCents = min_price != null ? Math.round(Number(min_price) * 100) : undefined;
-    const maxPriceCents = max_price != null ? Math.round(Number(max_price) * 100) : undefined;
+    const hasPriceFilter = min_price != null || max_price != null;
+    // When price filtering, fetch more to have enough to filter from.
+    // The Store API price filter requires a WC lookup table that may not be populated;
+    // we filter client-side on the minor-unit price field instead.
+    const fetchSize = hasPriceFilter ? 50 : per_page;
     const products = await this._storeFetch("/products", {
-      query: { search: query, category: categoryId, min_price: minPriceCents, max_price: maxPriceCents, per_page },
+      query: { search: query, category: categoryId, per_page: fetchSize },
     });
     // Fallback: if keyword search returns nothing and no explicit category was
     // given, treat the query as a category name/slug (e.g. "electronics").
+    let pool = products;
     if (products.length === 0 && query && !category) {
       const fallbackId = await this._categoryId(query);
       if (fallbackId) {
-        const catProducts = await this._storeFetch("/products", {
-          query: { category: fallbackId, min_price: minPriceCents, max_price: maxPriceCents, per_page },
-        });
-        return { count: catProducts.length, products: catProducts.map((p) => this._normalizeProduct(p)) };
+        pool = await this._storeFetch("/products", { query: { category: fallbackId, per_page: fetchSize } });
       }
     }
-    return { count: products.length, products: products.map((p) => this._normalizeProduct(p)) };
+    // Client-side price filter (LLM sends whole dollars; prices.price is minor units).
+    if (hasPriceFilter) {
+      pool = pool.filter((p) => {
+        const minorUnit = Number(p.prices?.currency_minor_unit ?? 2);
+        const dollars = Number(p.prices?.price ?? 0) / 10 ** minorUnit;
+        if (min_price != null && dollars < Number(min_price)) return false;
+        if (max_price != null && dollars > Number(max_price)) return false;
+        return true;
+      });
+    }
+    const page = pool.slice(0, per_page);
+    return { count: page.length, products: page.map((p) => this._normalizeProduct(p)) };
   }
 
   async getProductDetails({ product_id } = {}) {
